@@ -31,7 +31,7 @@ data/
 examples/.DS_Store
 .DS_Store
 
-checkpoints/*
+checkpoints
 
 data/
 
