@@ -31,4 +31,6 @@ data/
 examples/.DS_Store
 .DS_Store
 
+data
+
 __pycache__
