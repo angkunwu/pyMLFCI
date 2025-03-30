@@ -1,0 +1,280 @@
+# implement denosing diffusion probabilistic model (DDPM) class for training and sampling
+# based on: https://towardsdatascience.com/diffusion-model-from-scratch-in-pytorch-ddpm-9d9760528946/
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from einops import rearrange # for tensor manipulation
+from typing import List # for type hinting
+import random
+import math
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+from timm.utils import ModelEmaV3 # for exponential moving average of model weights
+from tqdm import tqdm
+import torch.optim as optim # for optimizer
+import numpy as np
+import matplotlib.pyplot as plt
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+class SinusoidalEmbeddings(nn.Module):
+    def __init__(self, time_steps:int, embed_dim:int):
+        super().__init__()
+        position = torch.arange(time_steps).unsqueeze(1).float()
+        frequencies = torch.exp(
+            torch.arange(0, embed_dim,2).float() * -(math.log(10000.0) / embed_dim)
+        )# This creates a range of values to use for the sinusoidal functions
+        embeddings = torch.zeros(time_steps, embed_dim, requires_grad=False)
+        embeddings[:, 0::2] = torch.sin(position * frequencies)
+        embeddings[:, 1::2] = torch.cos(position * frequencies)
+        self.embeddings = embeddings
+
+    def forward(self, x,t):
+        embeds = self.embeddings[t].to(x.device) # get the embeddings for the time step
+        return embeds[:,:,None,None] # return the embeddings reshaped to match the input shape for broadcasting
+
+
+
+# Residual Blocks
+class ResBlock(nn.Module):
+    def __init__(self, C: int, num_groups: int, dropout_prob: float):
+        super().__init__()
+        self.relu = nn.ReLU(inplace=True)
+        self.gnorm1 = nn.GroupNorm(num_groups=num_groups, num_channels=C)
+        self.gnorm2 = nn.GroupNorm(num_groups=num_groups, num_channels=C)
+        self.conv1 = nn.Conv2d(C, C, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(C, C, kernel_size=3, padding=1)
+        self.dropout = nn.Dropout(p=dropout_prob, inplace=True)
+
+    def forward(self, x, embeddings):
+        x = x + embeddings[:, :x.shape[1], :, :]
+        r = self.conv1(self.relu(self.gnorm1(x)))
+        r = self.dropout(r)
+        r = self.conv2(self.relu(self.gnorm2(r)))
+        return r + x
+
+# use transformer
+class Attention(nn.Module):
+    def __init__(self, C:int, num_heads:int, dropout_prob:float):
+        super().__init__()
+        self.proj1 = nn.Linear(C, C*3) # Project input to query, key, value
+        self.proj2 = nn.Linear(C, C) # Project back to original dimension
+        self.num_heads = num_heads
+        self.dropout_prob = dropout_prob
+    
+    def forward(self,x):
+        h, w = x.shape[2:] # Get the height and width of the input feature map
+        x = rearrange(x, 'b c h w -> b (h w) c') # Reshape to (batch_size, height*width, channels)
+        x = self.proj1(x)
+        x = rearrange(x, 'b L (C H K) -> K b H L C', K=3, H=self.num_heads) # Reshape to (num_heads, batch_size, height*width, channels)
+        q, k, v = x[0], x[1], x[2] # Split into query, key, value
+        x = F.scaled_dot_product_attention(q,k,v, is_causal=False,dropout_p=self.dropout_prob)
+        # Perform scaled dot-product attention
+        x = rearrange(x, 'b H (h w) C -> b h w (C H)', h=h,w=w) # Reshape back to (batch_size, height, width, channels)
+        x = self.proj2(x) # Project back to original dimension
+        return rearrange(x, 'b h w C -> b C h w') # Reshape back to (batch_size, channels, height, width)   
+
+# a complete layer of the UNET
+class UnetLayer(nn.Module):
+    def __init__(self, 
+            upscale: bool, 
+            attention: bool, 
+            num_groups: int, 
+            dropout_prob: float,
+            num_heads: int,
+            C: int):
+        super().__init__()
+        self.ResBlock1 = ResBlock(C=C, num_groups=num_groups, dropout_prob=dropout_prob)
+        self.ResBlock2 = ResBlock(C=C, num_groups=num_groups, dropout_prob=dropout_prob)
+        if upscale:
+            self.conv = nn.ConvTranspose2d(C, C//2, kernel_size=4, stride=2, padding=1)
+        else:
+            self.conv = nn.Conv2d(C, C*2, kernel_size=3, stride=2, padding=1)
+        if attention:
+            self.attention_layer = Attention(C, num_heads=num_heads, dropout_prob=dropout_prob)
+
+    def forward(self, x, embeddings):
+        x = self.ResBlock1(x, embeddings)
+        if hasattr(self, 'attention_layer'):
+            x = self.attention_layer(x)
+        x = self.ResBlock2(x, embeddings)
+        return self.conv(x), x
+
+class UNET(nn.Module): #fro downscale, the channel needs to be doubled
+    def __init__(self,
+            Channels: List = [8,16,32,64,64,48], #[64, 128, 256, 512, 512, 384],
+            Attentions: List = [True,True,True,True,True,True], #[False, True, False, False, False, True],
+            Upscales: List = [False,False,False,True,True, True], #[False, False, False, True, True, True],
+            num_groups: int = 8, #32
+            dropout_prob: float = 0.1,
+            num_heads: int = 4, #8
+            input_channels: int = 1,
+            output_channels: int = 1,
+            time_steps: int = 1000):
+        super().__init__()
+        self.num_layers = len(Channels)
+        self.shallow_conv = nn.Conv2d(input_channels, Channels[0], kernel_size=3, padding=1)
+        out_channels = (Channels[-1]//2)+Channels[0]
+        self.late_conv = nn.Conv2d(out_channels, out_channels//2, kernel_size=3, padding=1)
+        self.output_conv = nn.Conv2d(out_channels//2, output_channels, kernel_size=1)
+        self.relu = nn.ReLU(inplace=True)
+        self.embeddings = SinusoidalEmbeddings(time_steps=time_steps, embed_dim=max(Channels))
+        for i in range(self.num_layers):
+            layer = UnetLayer(
+                upscale=Upscales[i],
+                attention=Attentions[i],
+                num_groups=num_groups,
+                dropout_prob=dropout_prob,
+                C=Channels[i],
+                num_heads=num_heads
+            )
+            setattr(self, f'Layer{i+1}', layer)
+
+    def forward(self, x, t):
+        x = self.shallow_conv(x)
+        residuals = []
+        for i in range(self.num_layers//2):
+            layer = getattr(self, f'Layer{i+1}')
+            embeddings = self.embeddings(x, t)
+            x, r = layer(x, embeddings)
+            residuals.append(r)
+        for i in range(self.num_layers//2, self.num_layers):
+            layer = getattr(self, f'Layer{i+1}')
+            x = torch.concat((layer(x, embeddings)[0], residuals[self.num_layers-i-1]), dim=1)
+        return self.output_conv(self.relu(self.late_conv(x)))
+
+
+# The scheduler
+class DDPM_Scheduler(nn.Module):
+    def __init__(self, num_time_steps:int=1000):
+        super().__init__()
+        self.beta = torch.linspace(1e-4,0.02,num_time_steps,requires_grad=False) # Linear schedule for beta from 1e-4 to 0.02
+        alpha = 1-self.beta
+        self.alpha = torch.cumprod(alpha,dim=0).requires_grad_(False)
+    def forward(self,t):
+        return self.beta[t], self.alpha[t]
+
+
+'''
+def set_seed(seed: int=42):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
+'''
+def set_seed(seed: int=42):
+    torch.manual_seed(seed)
+    if device.type == 'cuda':  # Check if CUDA is available
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
+
+def train(batch_size: int=64,
+          num_time_steps: int=1000,
+          num_epochs: int=15,
+          seed: int = -1,
+          ema_decay: float=0.9999,
+          lr = 2e-5,
+          checkpoint_path: str=None
+          ):
+    set_seed(random.randint(0,2**32-1)) if seed == -1 else set_seed(seed)
+
+    train_dataset = datasets.MNIST(
+    '~/.pytorch/MNIST_data/',
+    download=True,
+    train=True,
+    transform=transforms.ToTensor()
+    )
+    train_loader = DataLoader(train_dataset,
+                              batch_size=batch_size,
+                              shuffle=True,
+                              drop_last=True, # Drop the last incomplete batch
+                              num_workers=4,
+    )
+    scheduler = DDPM_Scheduler(num_time_steps=num_time_steps)
+    model = UNET().to(device) # Initialize the UNET model and move to GPU if available
+    optimizer = optim.Adam(model.parameters(),lr=lr)
+    ema = ModelEmaV3(model,decay=ema_decay) # Initialize the EMA model for exponential moving average of model weights
+    if checkpoint_path is not None:
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['weights'])
+        ema.load_state_dict(checkpoint['ema'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+    criterion = nn.MSELoss(reduction='mean')
+    for i in range(num_epochs):
+        total_loss = 0.0
+        for bidx, (x,_) in enumerate(tqdm(train_loader,desc=f'Epoch {i+1}/{num_epochs}')):
+            x = x.to(device)
+            x = F.pad(x,(2,2,2,2)) # Pad the input to match the UNET input size
+            t = torch.randint(0,num_time_steps,(batch_size,),device=device) # Randomly sample time steps for each batch
+            e = torch.randn_like(x,requires_grad=False) # Sample random noise to add to the input for diffusion process
+            a = scheduler.alpha[t].view(batch_size,1,1,1).to(device)# Get the alpha value for the current time step
+            x = (torch.sqrt(a)*x)+(torch.sqrt(1-a)*e) # Apply the diffusion process to the input image
+            output = model(x,t)
+            optimizer.zero_grad() # Zero the gradients before backpropagation
+            loss = criterion(output,e)
+            total_loss += loss.item() # Accumulate the loss for logging
+            loss.backward() # Backpropagation
+            optimizer.step()
+            ema.update(model)
+        print(f'Epoch {i+1} | Loss {total_loss/(60000/batch_size):.5f}')
+
+    checkpoint = {
+        'weights': model.state_dict(),
+        'optimizer': optimizer.state_dict(), # Save the optimizer state
+        'ema': ema.state_dict() # Save the EMA state
+    }
+    torch.save(checkpoint,'checkpoints/ddpm_checkpoint') # Save the final model checkpoint
+
+def display_reverse(images:List):
+    fig, axes = plt.subplots(1,10, figsize=(10,1))
+    for i, ax in enumerate(axes.flat):
+        x = images[i].squeeze(0)
+        x = rearrange(x,'c h w -> h w c')
+        x = x.numpy()
+        ax.imshow(x)
+        ax.axis('off')
+    plt.show()
+
+def inference(checkpoint_path:str=None,
+              num_time_steps: int=1000,
+              ema_decay: float=0.9999,):
+    checkpoint = torch.load(checkpoint_path,map_location=device) # Load the checkpoint from the specified path
+    model = UNET().to(device)
+    model.load_state_dict(checkpoint['weights']) # Load the model weights from the checkpoint
+    ema = ModelEmaV3(model, decay=ema_decay) # Initialize the EMA model
+    ema.load_state_dict(checkpoint['ema']) # Load the EMA state
+    scheduler = DDPM_Scheduler(num_time_steps=num_time_steps) # Initialize the scheduler
+    times = [0, 15,50,100,200,300,400,550,700,999]
+    images = []
+    with torch.no_grad():# Disable gradient computation for inference
+        model = ema.module.eval()
+        for i in range(10):
+            z = torch.randn(1,1,32,32).to(device)
+            for t in reversed(range(1,num_time_steps)):
+                t = [t]
+                temp = (scheduler.beta[t]/((torch.sqrt(1-scheduler.alpha[t]))*(torch.sqrt(1-scheduler.beta[t]))))
+                z = (1/(torch.sqrt(1-scheduler.beta[t]))).to(device)*z-(temp*model(z,t))
+                if t[0] in times:
+                    images.append(z.cpu())
+                e = torch.randn(1,1,32,32).to(device)
+                z = z + (e*torch.sqrt(scheduler.beta[t]).to(device))
+            temp = scheduler.beta[0]/((torch.sqrt(1-scheduler.alpha[0]))*(torch.sqrt(1-scheduler.beta[0]))).to(device)
+            x = (1/(torch.sqrt(1-scheduler.beta[0]))).to(device)*z-(temp*model(z,[0]))
+
+            images.append(x.cpu())
+            x = rearrange(x.squeeze(0),'c h w -> h w c').detach().cpu().numpy()
+            #x = x.numpy()
+            plt.imshow(x)
+            plt.show()
+            display_reverse(images)
+            images = [] # Clear the images list for the next iteration
+
+
+
+
+
