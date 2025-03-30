@@ -14,26 +14,23 @@ from tqdm import tqdm
 import torch.optim as optim # for optimizer
 import numpy as np
 import matplotlib.pyplot as plt
+from torch import device
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class SinusoidalEmbeddings(nn.Module):
-    def __init__(self, time_steps:int, embed_dim:int):
+    def __init__(self, time_steps:int, embed_dim: int, device: device):
         super().__init__()
         position = torch.arange(time_steps).unsqueeze(1).float()
-        frequencies = torch.exp(
-            torch.arange(0, embed_dim,2).float() * -(math.log(10000.0) / embed_dim)
-        )# This creates a range of values to use for the sinusoidal functions
+        div = torch.exp(torch.arange(0, embed_dim, 2).float() * -(math.log(10000.0) / embed_dim))
         embeddings = torch.zeros(time_steps, embed_dim, requires_grad=False)
-        embeddings[:, 0::2] = torch.sin(position * frequencies)
-        embeddings[:, 1::2] = torch.cos(position * frequencies)
-        self.embeddings = embeddings
+        embeddings[:, 0::2] = torch.sin(position * div)
+        embeddings[:, 1::2] = torch.cos(position * div)
+        self.embeddings = embeddings.to(device)
 
-    def forward(self, x,t):
-        embeds = self.embeddings[t].to(x.device) # get the embeddings for the time step
-        return embeds[:,:,None,None] # return the embeddings reshaped to match the input shape for broadcasting
-
-
+    def forward(self, t):
+        embeds = self.embeddings[t]
+        return embeds[:, :, None, None]
 
 # Residual Blocks
 class ResBlock(nn.Module):
@@ -55,24 +52,23 @@ class ResBlock(nn.Module):
 
 # use transformer
 class Attention(nn.Module):
-    def __init__(self, C:int, num_heads:int, dropout_prob:float):
+    def __init__(self, C: int, num_heads:int , dropout_prob: float):
         super().__init__()
-        self.proj1 = nn.Linear(C, C*3) # Project input to query, key, value
-        self.proj2 = nn.Linear(C, C) # Project back to original dimension
+        self.proj1 = nn.Linear(C, C*3)
+        self.proj2 = nn.Linear(C, C)
         self.num_heads = num_heads
         self.dropout_prob = dropout_prob
-    
-    def forward(self,x):
-        h, w = x.shape[2:] # Get the height and width of the input feature map
-        x = rearrange(x, 'b c h w -> b (h w) c') # Reshape to (batch_size, height*width, channels)
+
+    def forward(self, x):
+        h, w = x.shape[2:]
+        x = rearrange(x, 'b c h w -> b (h w) c')
         x = self.proj1(x)
-        x = rearrange(x, 'b L (C H K) -> K b H L C', K=3, H=self.num_heads) # Reshape to (num_heads, batch_size, height*width, channels)
-        q, k, v = x[0], x[1], x[2] # Split into query, key, value
-        x = F.scaled_dot_product_attention(q,k,v, is_causal=False,dropout_p=self.dropout_prob)
-        # Perform scaled dot-product attention
-        x = rearrange(x, 'b H (h w) C -> b h w (C H)', h=h,w=w) # Reshape back to (batch_size, height, width, channels)
-        x = self.proj2(x) # Project back to original dimension
-        return rearrange(x, 'b h w C -> b C h w') # Reshape back to (batch_size, channels, height, width)   
+        x = rearrange(x, 'b L (C H K) -> K b H L C', K=3, H=self.num_heads)
+        q,k,v = x[0], x[1], x[2]
+        x = F.scaled_dot_product_attention(q,k,v, is_causal=False, dropout_p=self.dropout_prob)
+        x = rearrange(x, 'b H (h w) C -> b h w (C H)', h=h, w=w)
+        x = self.proj2(x)
+        return rearrange(x, 'b h w C -> b C h w')
 
 # a complete layer of the UNET
 class UnetLayer(nn.Module):
@@ -100,16 +96,17 @@ class UnetLayer(nn.Module):
         x = self.ResBlock2(x, embeddings)
         return self.conv(x), x
 
-class UNET(nn.Module): #fro downscale, the channel needs to be doubled
+class UNET(nn.Module):
     def __init__(self,
-            Channels: List = [8,16,32,64,64,48], #[64, 128, 256, 512, 512, 384],
-            Attentions: List = [True,True,True,True,True,True], #[False, True, False, False, False, True],
-            Upscales: List = [False,False,False,True,True, True], #[False, False, False, True, True, True],
+            Channels: List = [8,16,32,32], #[64, 128, 256, 512, 512, 384],
+            Attentions: List = [True,True,True,True], #[False, True, False, False, False, True],
+            Upscales: List = [False,False,True, True], #[False, False, False, True, True, True],
             num_groups: int = 8, #32
-            dropout_prob: float = 0.1,
+            dropout_prob: float = 0.0,
             num_heads: int = 4, #8
             input_channels: int = 1,
             output_channels: int = 1,
+            device: device = 'cpu',
             time_steps: int = 1000):
         super().__init__()
         self.num_layers = len(Channels)
@@ -118,7 +115,7 @@ class UNET(nn.Module): #fro downscale, the channel needs to be doubled
         self.late_conv = nn.Conv2d(out_channels, out_channels//2, kernel_size=3, padding=1)
         self.output_conv = nn.Conv2d(out_channels//2, output_channels, kernel_size=1)
         self.relu = nn.ReLU(inplace=True)
-        self.embeddings = SinusoidalEmbeddings(time_steps=time_steps, embed_dim=max(Channels))
+        self.embeddings = SinusoidalEmbeddings(time_steps=time_steps, embed_dim=max(Channels), device=device)
         for i in range(self.num_layers):
             layer = UnetLayer(
                 upscale=Upscales[i],
@@ -135,7 +132,7 @@ class UNET(nn.Module): #fro downscale, the channel needs to be doubled
         residuals = []
         for i in range(self.num_layers//2):
             layer = getattr(self, f'Layer{i+1}')
-            embeddings = self.embeddings(x, t)
+            embeddings = self.embeddings(t)
             x, r = layer(x, embeddings)
             residuals.append(r)
         for i in range(self.num_layers//2, self.num_layers):
@@ -143,17 +140,19 @@ class UNET(nn.Module): #fro downscale, the channel needs to be doubled
             x = torch.concat((layer(x, embeddings)[0], residuals[self.num_layers-i-1]), dim=1)
         return self.output_conv(self.relu(self.late_conv(x)))
 
-
 # The scheduler
 class DDPM_Scheduler(nn.Module):
-    def __init__(self, num_time_steps:int=1000):
+    def __init__(self, num_time_steps: int=1000,device: device = 'cpu'):
         super().__init__()
-        self.beta = torch.linspace(1e-4,0.02,num_time_steps,requires_grad=False) # Linear schedule for beta from 1e-4 to 0.02
-        alpha = 1-self.beta
-        self.alpha = torch.cumprod(alpha,dim=0).requires_grad_(False)
-    def forward(self,t):
-        return self.beta[t], self.alpha[t]
+        self.beta = torch.linspace(1e-4, 0.02, num_time_steps, requires_grad=False)
+        alpha = 1 - self.beta
+        self.alpha = torch.cumprod(alpha, dim=0).requires_grad_(False)
 
+        self.beta = self.beta.to(device)
+        self.alpha = self.alpha.to(device)
+
+    def forward(self, t):
+        return self.beta[t], self.alpha[t]
 
 '''
 def set_seed(seed: int=42):
@@ -179,10 +178,11 @@ def train(batch_size: int=64,
           seed: int = -1,
           ema_decay: float=0.9999,
           lr = 2e-5,
-          checkpoint_path: str=None
+          checkpoint_path: str=None,
+          device: device = 'cpu',
           ):
     set_seed(random.randint(0,2**32-1)) if seed == -1 else set_seed(seed)
-
+    print(device)
     train_dataset = datasets.MNIST(
     '~/.pytorch/MNIST_data/',
     download=True,
@@ -195,28 +195,32 @@ def train(batch_size: int=64,
                               drop_last=True, # Drop the last incomplete batch
                               num_workers=4,
     )
-    scheduler = DDPM_Scheduler(num_time_steps=num_time_steps)
-    model = UNET().to(device) # Initialize the UNET model and move to GPU if available
+    scheduler = DDPM_Scheduler(num_time_steps=num_time_steps,device=device).to(device)
+    scheduler.beta = scheduler.beta.to(device)
+    scheduler.alpha = scheduler.alpha.to(device)
+    #model = UNET().to(device) # Initialize the UNET model and move to GPU if available
+    model = UNET(device=device).to(device) # Initialize the UNET model and move to GPU if available
     optimizer = optim.Adam(model.parameters(),lr=lr)
-    ema = ModelEmaV3(model,decay=ema_decay) # Initialize the EMA model for exponential moving average of model weights
+    ema = ModelEmaV3(model, decay=ema_decay)
     if checkpoint_path is not None:
         checkpoint = torch.load(checkpoint_path)
         model.load_state_dict(checkpoint['weights'])
         ema.load_state_dict(checkpoint['ema'])
         optimizer.load_state_dict(checkpoint['optimizer'])
     criterion = nn.MSELoss(reduction='mean')
+
     for i in range(num_epochs):
         total_loss = 0.0
         for bidx, (x,_) in enumerate(tqdm(train_loader,desc=f'Epoch {i+1}/{num_epochs}')):
-            x = x.to(device)
             x = F.pad(x,(2,2,2,2)) # Pad the input to match the UNET input size
-            t = torch.randint(0,num_time_steps,(batch_size,),device=device) # Randomly sample time steps for each batch
+            x = x.to(device)
+            t = torch.randint(0,num_time_steps,(batch_size,), device=device)#,device=device) # Randomly sample time steps for each batch
             e = torch.randn_like(x,requires_grad=False) # Sample random noise to add to the input for diffusion process
-            a = scheduler.alpha[t].view(batch_size,1,1,1).to(device)# Get the alpha value for the current time step
+            a = scheduler.alpha.to(device)[t].contiguous().reshape(batch_size,1,1,1)# Get the alpha value for the current time step
             x = (torch.sqrt(a)*x)+(torch.sqrt(1-a)*e) # Apply the diffusion process to the input image
             output = model(x,t)
             optimizer.zero_grad() # Zero the gradients before backpropagation
-            loss = criterion(output,e)
+            loss = criterion(output,e) # Calculate the loss between the model output and the noise
             total_loss += loss.item() # Accumulate the loss for logging
             loss.backward() # Backpropagation
             optimizer.step()
@@ -242,9 +246,10 @@ def display_reverse(images:List):
 
 def inference(checkpoint_path:str=None,
               num_time_steps: int=1000,
-              ema_decay: float=0.9999,):
+              ema_decay: float=0.9999,
+              device: device = 'cpu'):
     checkpoint = torch.load(checkpoint_path,map_location=device) # Load the checkpoint from the specified path
-    model = UNET().to(device)
+    model = UNET(device=device).to(device)
     model.load_state_dict(checkpoint['weights']) # Load the model weights from the checkpoint
     ema = ModelEmaV3(model, decay=ema_decay) # Initialize the EMA model
     ema.load_state_dict(checkpoint['ema']) # Load the EMA state
