@@ -31,6 +31,8 @@ data/
 examples/.DS_Store
 .DS_Store
 
-data
+checkpoints/
+
+data/
 
 __pycache__
