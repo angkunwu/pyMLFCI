@@ -1,3 +1,7 @@
+# Add the current directory  to the Python path
+import sys,os
+sys.path.append(os.getcwd())
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
