@@ -36,7 +36,7 @@ def inference(checkpoint_path:str=None,
               ema_decay: float=0.9999,
               device: torch.device='cpu',
               ):
-    device = torch.device('cpu')
+
     checkpoint = torch.load(checkpoint_path,map_location=device) # Load the checkpoint from the specified path
     model = UNET().to(device)
     model.load_state_dict(checkpoint['weights']) # Load the model weights from the checkpoint
@@ -68,10 +68,10 @@ def inference(checkpoint_path:str=None,
         images = [] # Clear the images list for the next iteration
 
 
-train(lr=2e-5,num_epochs=10,device='mps')
+train(lr=2e-5,num_epochs=75,device='mps')
 
 #train(checkpoint_path='checkpoints/ddpm_checkpoint',lr=2e-5,num_epochs=75)
-inference('checkpoints/ddpm_checkpoint') # Run inference to generate samples from the trained model
+inference('checkpoints/ddpm_checkpoint',device='cpu') # Run inference to generate samples from the trained model
 
 
 

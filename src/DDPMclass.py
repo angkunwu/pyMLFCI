@@ -1,5 +1,6 @@
 # implement denosing diffusion probabilistic model (DDPM) class for training and sampling
 # based on: https://towardsdatascience.com/diffusion-model-from-scratch-in-pytorch-ddpm-9d9760528946/
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -98,12 +99,12 @@ class UnetLayer(nn.Module):
 
 class UNET(nn.Module):
     def __init__(self,
-            Channels: List = [8,16,32,32], #[64, 128, 256, 512, 512, 384],
-            Attentions: List = [True,True,True,True], #[False, True, False, False, False, True],
-            Upscales: List = [False,False,True, True], #[False, False, False, True, True, True],
-            num_groups: int = 8, #32
-            dropout_prob: float = 0.0,
-            num_heads: int = 4, #8
+            Channels: List = [64, 128, 256, 512, 512, 384],
+            Attentions: List = [False, True, False, False, False, True],
+            Upscales: List = [False, False, False, True, True, True],
+            num_groups: int = 32,
+            dropout_prob: float = 0.1,
+            num_heads: int = 8,
             input_channels: int = 1,
             output_channels: int = 1,
             device: device = 'cpu',
@@ -182,7 +183,7 @@ def train(batch_size: int=64,
           device: device = 'cpu',
           ):
     set_seed(random.randint(0,2**32-1)) if seed == -1 else set_seed(seed)
-    print(device)
+
     train_dataset = datasets.MNIST(
     '~/.pytorch/MNIST_data/',
     download=True,
