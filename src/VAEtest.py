@@ -58,18 +58,18 @@ plt.show()
 from tqdm.auto import tqdm
 
 writer = None #SummaryWriter(f'runs/mnist/vae_{datetime.now().strftime("%Y%m%d-%H%M%S")}')
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device('mps' if torch.cuda.is_available() else 'cpu')
 # hyperparameters
 batch_size = 128
 learning_rate = 1e-3
 weight_decay = 1e-2
 num_epochs = 10 # 50
 latent_dim = 2
-hidden_dim = 512
+hidden_dim = 1024 # 512
 
 from src import VAEclass
 
-model = VAEclass.VAE(input_dim=784,hidden_dim=hidden_dim,latent_dim=latent_dim).to(device)
+model = VAEclass.VAE(input_dim=28*28,hidden_dim=hidden_dim,latent_dim=latent_dim).to(device)
 
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(f'Number of parameters: {num_params:,}')

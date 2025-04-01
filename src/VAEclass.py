@@ -146,7 +146,7 @@ def train(model, dataloader, optimizer, prev_updates, writer=None,batch_size=128
         dataloader (torch.utils.data.DataLoader): The data loader to iterate over the dataset
         optimizer (torch.optim.Optimizer): The optimizer to update the model parameters
     """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('mps' if torch.cuda.is_available() else 'cpu')
     model.train() # Set the model to training mode
     for batch_idx, (data, target) in enumerate(tqdm(dataloader)):
         n_upd = prev_updates + batch_idx # number of updates
@@ -163,7 +163,7 @@ def train(model, dataloader, optimizer, prev_updates, writer=None,batch_size=128
                     param_norm = p.grad.data.norm(2) # L2 norm
                     total_norm += param_norm.item() ** 2
             total_norm = total_norm ** 0.5
-            print(f'Step {n_upd:,} (N samples: {n_upd*batch_size:,}), Loss: {loss.item():.4f} (Recon: {output.loss_recon.item():.4f}, KL: {output.loss_kl.item():.4f}) Grad: {total_norm:.4f}')
+            #print(f'Step {n_upd:,} (N samples: {n_upd*batch_size:,}), Loss: {loss.item():.4f} (Recon: {output.loss_recon.item():.4f}, KL: {output.loss_kl.item():.4f}) Grad: {total_norm:.4f}')
             if writer is not None:
                 global_step = n_upd
                 writer.add_scalar('Loss/train', loss.item(), global_step)
@@ -183,7 +183,7 @@ def test(model, dataloader, cur_step, writer=None):
         cur_step (int): The current step
         writer: The tensorboard writer
     """
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('mps' if torch.cuda.is_available() else 'cpu')
     model.eval() # Set the model to evaluation mode
     test_loss = 0
     test_recon_loss = 0
