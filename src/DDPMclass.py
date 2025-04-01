@@ -99,12 +99,12 @@ class UnetLayer(nn.Module):
 
 class UNET(nn.Module):
     def __init__(self,
-            Channels: List = [64, 128, 256, 512, 512, 384],
+            Channels: List = [8,16,32,64,64,48],#[64, 128, 256, 512, 512, 384],
             Attentions: List = [False, True, False, False, False, True],
             Upscales: List = [False, False, False, True, True, True],
-            num_groups: int = 32,
+            num_groups: int = 8, #32,
             dropout_prob: float = 0.1,
-            num_heads: int = 8,
+            num_heads: int = 4,#8,
             input_channels: int = 1,
             output_channels: int = 1,
             device: device = 'cpu',

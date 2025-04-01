@@ -68,7 +68,7 @@ def inference(checkpoint_path:str=None,
         images = [] # Clear the images list for the next iteration
 
 
-train(lr=2e-5,num_epochs=75,device='mps')
+train(lr=2e-5,num_epochs=10000,device='mps')
 
 #train(checkpoint_path='checkpoints/ddpm_checkpoint',lr=2e-5,num_epochs=75)
 inference('checkpoints/ddpm_checkpoint',device='cpu') # Run inference to generate samples from the trained model
