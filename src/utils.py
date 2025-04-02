@@ -96,3 +96,14 @@ def EvaluateModel(MODEL, X, y):
     print("False Negatives: ", FN/np.size(y))
     F1score = 2*TP/(2*TP + FP + FN)
     return accuracy, F1score
+
+# generate a function that convert the 1D data back to 2D data
+def convert1Dto2D(data1d,N,NBZ):
+    #data2d = np.zeros((N,N*NBZ),dtype=complex)
+    data2d = np.zeros((N*NBZ,N),dtype=complex)
+    for k in range(NBZ):
+        #data2d[:,k*N:(k+1)*N] = data1d[k*N*N:(k+1)*N*N].reshape(N,N)
+        data2d[(k*N):((k+1)*N),:] = data1d[(k*N*N):((k+1)*N*N)].reshape(N,N)
+    # transpose the data2d
+    data2d = data2d.T
+    return data2d

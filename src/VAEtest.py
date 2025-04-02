@@ -52,6 +52,11 @@ for i in range(8):
 
 plt.show()
 
+plt.figure(figsize=(5, 5))
+plt.imshow(images[2].view(28, 28).cpu().numpy(), cmap='gray')
+#plt.axis('off')
+plt.colorbar() # add color bar
+plt.show()
 
 #from datetime import datetime
 #from torch.utils.tensorboard import SummaryWriter
@@ -82,6 +87,19 @@ for epoch in range(num_epochs):
     prev_updates = VAEclass.train(model,train_loader,optimizer,prev_updates,writer=writer,batch_size=batch_size)
     VAEclass.test(model,test_loader,prev_updates,writer=writer)
 
+test = model.encode(images[2].to(device))
+mean = test.loc  # Mean of the distribution
+covariance_matrix = test.covariance_matrix  # Covariance matrix of the distribution
+print("Mean:", mean)
+print("Covariance Matrix:", covariance_matrix)
+imagetest = model.decoder(mean)
+plt.figure(figsize=(5, 5))
+plt.imshow(imagetest.view(28, 28).cpu().detach().numpy(), cmap='gray')
+#plt.axis('off')
+plt.colorbar() # add color bar
+plt.show()
+
+
 z = torch.randn(64,latent_dim).to(device)
 samples = model.decode(z)
 # samples = torch.sigmoid(samples)
@@ -107,13 +125,13 @@ with torch.no_grad():
 z_all = np.concatenate(z_all,axis=0)
 y_all = np.concatenate(y_all,axis=0)
 # plot classifcation in latent space
-plt.figure(figsize=(10, 10))
+plt.figure(figsize=(8, 8))
 plt.scatter(z_all[:, 0], z_all[:, 1], c=y_all, cmap='tab10')
 plt.colorbar()
 plt.show()
 
 # Interpolating in latent space
-n = 15
+n = 10
 z1 = torch.linspace(-0,1,n)
 z2 = torch.zeros_like(z1)+2
 z = torch.stack([z1,z2],dim=-1).to(device)

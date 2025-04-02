@@ -1,31 +1,20 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 from src import utils
 from src import FormFactorFuns as FFFs
 
+
 Nx, Ny = 3, 5
-train_data, y = utils.ReadAllData(Nx,Ny) # the train_data is a 2D array with each column as one form factor vector
+N = Nx*Ny
+train_data, y = utils.ReadAllData(Nx,Ny)
+NBZ = int(train_data.shape[0]/N/N)
 
-# generate a function that convert the 1D data back to 2D data
-def convert1Dto2D(data1d,N,NBZ):
-    #data2d = np.zeros((N,N*NBZ),dtype=complex)
-    data2d = np.zeros((N*NBZ,N),dtype=complex)
-    for k in range(NBZ):
-        #data2d[:,k*N:(k+1)*N] = data1d[k*N*N:(k+1)*N*N].reshape(N,N)
-        data2d[(k*N):((k+1)*N),:] = data1d[(k*N*N):((k+1)*N*N)].reshape(N,N)
-    # transpose the data2d
-    data2d = data2d.T
-    return data2d
+Samples = np.size(y)
 
-alphas = np.linspace(0.78943,3.517548,100)
-FormFactor1d = train_data[:,0]
-N = Nx * Ny
-NBZ = FormFactor1d.shape[0]/N/N
-NBZ = int(NBZ)
-FormFactor2d = convert1Dto2D(FormFactor1d,N,NBZ)
-
+FormFactor2d = utils.convert1Dto2D(train_data[:,0],N,NBZ)
 BZind = int(NBZ/2)+1 # choose the center BZ
 FFmiddle = FormFactor2d[:,((BZind-1)*N):(BZind*N)]
 FFmiddle_phase = np.angle(FFmiddle)
@@ -36,10 +25,34 @@ plt.colorbar() # add color bar
 #plt.yscale('log')
 plt.show()
 
+
+
+# mean of the training data
+barx = np.mean(train_data,axis=1)
+# Principal component analysis
+XT = train_data - barx[:,None]
+X = XT.conj().T
+S = np.dot(X,XT)/Samples # N by N matrix
+eigenvalues, eigenvectors = np.linalg.eig(S)
+# convert components from Nx1 to Dx1
+normalvectors = np.zeros(XT.shape,dtype=complex)
+for k in range(Samples):
+    normalvectors[:,k] = np.dot(XT,eigenvectors[:,k])/np.sqrt(eigenvalues[k]*Samples)
+
+def obtainExpansion(XT,normalvectors):
+    Samples = XT.shape[1]
+    Expansion = np.zeros((Samples,Samples),dtype=complex)
+    for k in tqdm(range(Samples)):
+        Expansion[:,k] = np.dot(XT.conj().T,normalvectors[:,k])
+    return Expansion
+
+expansions = obtainExpansion(XT,normalvectors) # each row is the expansion coefficients of one form factor
+
+
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-class FormFactorDataset(Dataset):
+class FFPCADataset(Dataset):
     def __init__(self, data, labels,Nx,Ny,NBZ, transform=None):
         """
         Args:
@@ -61,12 +74,12 @@ class FormFactorDataset(Dataset):
         return self.data.shape[1] 
     
     def __getitem__(self, idx):
-        data1d = self.data[:, idx]
+        data1d = self.data[idx, :] # each row is an expansin !!!
         data_real = data1d.real
         data_imag = data1d.imag
         data_combined = np.concatenate((data_real, data_imag), axis=0)
         # Normalize the data (optional, depending on your model)
-        data_combined = (data_combined) / 2.0  # Scale to [-0.5, 0.5]
+        data_combined = (data_combined) / 28  # Scale to [-0.5, 0.5]
         # Convert to PyTorch tensor
         data_tensor = torch.tensor(data_combined, dtype=torch.float32)
         # Apply any additional transformations
@@ -76,26 +89,28 @@ class FormFactorDataset(Dataset):
         label_tensor = torch.tensor(bool(label), dtype=torch.bool)
         return data_tensor, label_tensor
 
-FFdataset = FormFactorDataset(train_data, y, Nx, Ny, NBZ)
+FFPCAdataset = FFPCADataset(expansions, y, Nx, Ny, NBZ)
 
-def dataTophase(Tensordata):
-    # Convert the data to 2D with complex numbers
-    dataNP = Tensordata[0].numpy()*2.0
-    dataComplex = convert1Dto2D(dataNP[:(N*N*NBZ)],N,NBZ) + 1j*convert1Dto2D(dataNP[(N*N*NBZ):],N,NBZ)
-    # Get the phase of the complex data
-    BZind = int(NBZ/2)+1 # choose the center BZ
-    data_phase = np.angle(dataComplex[:,((BZind-1)*N):(BZind*N)])
-    return data_phase
+def PCAtoFF(PCATensordata):
+    dataNP = PCATensordata[0].numpy()*28
+    coefs = dataNP[0:len(dataNP)//2] + 1j*dataNP[len(dataNP)//2:len(dataNP)]
+    FFres = np.zeros((N*N*NBZ),dtype=complex)
+    for k in range(len(dataNP)//2):
+        FFres += coefs[k]*normalvectors[:,k]
+    FFres += barx # very important to add the mean!!!
+    return FFres
 
-FFimageTensor = FFdataset[0]
-# convert the data to 2D with complex numbers
-FFmidtest_phase = dataTophase(FFimageTensor)
-# check it FFmiddle_phase and FFmidtest_phase are the sames
-print(np.allclose(FFmiddle_phase, FFmidtest_phase))
+FFimage1d = PCAtoFF(FFPCAdataset[0])
+FFimage2d = utils.convert1Dto2D(FFimage1d,N,NBZ)
+BZind = int(NBZ/2)+1 
+FFmidtest_phase = np.angle(FFimage2d[:,((BZind-1)*N):(BZind*N)])
 
+plt.figure()
+plt.imshow(FFmidtest_phase, cmap='RdBu', interpolation='nearest')
+plt.colorbar() # add color bar
+#plt.yscale('log')
+plt.show()
 
-
-from tqdm.auto import tqdm
 from torch.utils.data import random_split
 
 writer = None #SummaryWriter(f'runs/mnist/vae_{datetime.now().strftime("%Y%m%d-%H%M%S")}')
@@ -105,24 +120,24 @@ batch_size = 10
 learning_rate = 1e-3
 weight_decay = 1e-2
 num_epochs = 100 # 50
-latent_dim = 2 #2
+latent_dim = 3 #2
 hidden_dim = 2048 # 512
-train_ratio = 0.5
+train_ratio = 0.8
 test_ratio = 1 - train_ratio
 
-dataset_size = len(FFdataset)
+dataset_size = len(FFPCAdataset)
 train_size = int(train_ratio * dataset_size)
 test_size = dataset_size - train_size
-train_dataset, test_dataset = random_split(FFdataset, [train_size, test_size])
+train_dataset, test_dataset = random_split(FFPCAdataset, [train_size, test_size])
 
 # Create a DataLoaders
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-all_loader = DataLoader(FFdataset, shuffle=False)
+all_loader = DataLoader(FFPCAdataset, shuffle=False)
 
 from src import VAEclass
 
-model = VAEclass.VAE(input_dim=2*N*N*NBZ,hidden_dim=hidden_dim,latent_dim=latent_dim).to(device)
+model = VAEclass.VAE(input_dim=2*Samples,hidden_dim=hidden_dim,latent_dim=latent_dim).to(device)
 
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(f'Number of parameters: {num_params:,}')
@@ -136,24 +151,28 @@ for epoch in range(num_epochs):
     VAEclass.test(model,test_loader,prev_updates,writer=writer)
 
 # Save the model after training
-#model_save_path = f'./checkpoints/vae_FF_lat_{latent_dim}_epoch_{num_epochs}.pth'
-#torch.save(model.state_dict(), model_save_path)
-#print(f"Model saved to {model_save_path}")
+model_save_path = f'./checkpoints/vae_FFPCA_lat_{latent_dim}_epoch_{num_epochs}.pth'
+torch.save(model.state_dict(), model_save_path)
+print(f"Model saved to {model_save_path}")
 
 # Load the model
-model_load_path = f'./checkpoints/vae_FF_lat_{latent_dim}_epoch_{num_epochs}.pth'
-model = VAEclass.VAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
+model_load_path = f'./checkpoints/vae_FFPCA_lat_{latent_dim}_epoch_{num_epochs}.pth'
+model = VAEclass.VAE(input_dim=2*Samples, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
 model.load_state_dict(torch.load(model_load_path))
 model.eval()  # Set the model to evaluation mode
 print(f"Model loaded from {model_load_path}")
 
-def dataTophase(Tensordata):
-    # Convert the data to 2D with complex numbers
-    dataNP = (Tensordata.detach().numpy()-0.5)*2.0 # -0.5 from adding 0.5 in the model class
-    dataComplex = convert1Dto2D(dataNP[:(N*N*NBZ)],N,NBZ) + 1j*convert1Dto2D(dataNP[(N*N*NBZ):],N,NBZ)
+def PCAdataTophase(Tensordata):
+    dataNP = (Tensordata.detach().numpy()-0.5)*28
+    coefs = dataNP[0:len(dataNP)//2] + 1j*dataNP[len(dataNP)//2:len(dataNP)]
+    FFres = np.zeros((N*N*NBZ),dtype=complex)
+    for k in range(len(dataNP)//2):
+        FFres += coefs[k]*normalvectors[:,k]
+    FFres += barx # very important to add the mean!!!
+    FF2d = utils.convert1Dto2D(FFres,N,NBZ)
     # Get the phase of the complex data
     BZind = int(NBZ/2)+1 # choose the center BZ
-    data_phase = np.angle(dataComplex[:,((BZind-1)*N):(BZind*N)])
+    data_phase = np.angle(FF2d[:,((BZind-1)*N):(BZind*N)])
     return data_phase
 
 # Get a batch of data from the train_loader
@@ -167,10 +186,9 @@ print("Mean:", mean)
 print("Covariance Matrix:", covariance_matrix)
 imagetest = model.decoder(mean)
 plt.figure(figsize=(5, 5))
-plt.imshow(dataTophase(imagetest), cmap='RdBu', interpolation='nearest')
+plt.imshow(PCAdataTophase(imagetest), cmap='RdBu', interpolation='nearest')
 plt.colorbar() # add color bar
 plt.show()
-
 
 
 z = torch.randn(4,latent_dim).to(device)
@@ -181,10 +199,10 @@ fig, ax = plt.subplots(2,2, figsize=(8,8))
 for i in range(2):
     for j in range(2):
         img_idx = i*2+j
-        ax[i,j].imshow(dataTophase(samples[img_idx]),cmap='RdBu', interpolation='nearest')
-        ax[i,j].axis('off')
+        im = ax[i,j].imshow(PCAdataTophase(samples[img_idx]),cmap='RdBu', interpolation='nearest')
+        #ax[i,j].axis('off')
+        #fig.colorbar(im, ax=ax[i, j], orientation='vertical')
 plt.show()
-
 
 
 # encode and plot the latent space for the training set
@@ -204,6 +222,14 @@ plt.figure(figsize=(8, 8))
 plt.scatter(z_all[:, 0], z_all[:, 1], c=y_all,cmap='RdBu')
 plt.colorbar()
 plt.show()
+# 3D plot
+#from mpl_toolkits.mplot3d import Axes3D
+#fig = plt.figure(figsize=(8, 8))
+#ax = fig.add_subplot(111, projection='3d')
+#ax.scatter(z_all[:, 0], z_all[:, 1], z_all[:, 2], c=y_all, cmap='RdBu')
+#plt.colorbar()
+#plt.show()
+
 
 # Interpolating in latent space
 n = 10
@@ -215,6 +241,6 @@ samples = model.decode(z)
 # Plot the generated images
 fig, ax = plt.subplots(1,n,figsize=(n,1))
 for i in range(n):
-    ax[i].imshow(dataTophase(samples[i]),cmap='RdBu')
+    ax[i].imshow(PCAdataTophase(samples[i]),cmap='RdBu')
     ax[i].axis('off')
 plt.show()
