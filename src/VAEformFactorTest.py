@@ -20,7 +20,7 @@ print(f"Dataset size: {dataset_size}")
 all_loader = DataLoader(FFdataset, shuffle = False)
 
 hidden_dim = 2048
-latent_dim = 50
+latent_dim = 5
 num_epochs = 100
 # Load the model
 model_load_path = f'./checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
@@ -28,6 +28,18 @@ model = VAEclass.VAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=late
 model.load_state_dict(torch.load(model_load_path))
 model.eval()  # Set the model to evaluation mode
 print(f"Model loaded from {model_load_path}")
+"""
+hidden_dim = 128
+latent_dim = 5
+d_model = 16
+n_layers = 2
+n_heads = 4
+model_save_path = f'./checkpoints/vaeMixture_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
+model = VAEclass.ConvTransformerVAE(
+    input_dim=2*N*N*NBZ, k_components=N, hidden_dim=hidden_dim, latent_dim=latent_dim, 
+    d_model=d_model, n_layers=n_layers,n_heads=n_heads).to(device)
+model.load_state_dict(torch.load(model_load_path))
+"""
 
 def dataTophase(Tensordata):
     # Convert the data to 2D with complex numbers
