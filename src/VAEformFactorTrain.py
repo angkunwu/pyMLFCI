@@ -1,8 +1,11 @@
+# source ./.venv/bin/activate
 import numpy as np
 import torch 
 from torch.utils.data import DataLoader, random_split
 from src import utils
 from src import VAEclass
+#import utils
+#import VAEclass
 
 #device = torch.device('mps' if torch.cuda.is_available() else 'cpu')
 device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
@@ -17,7 +20,7 @@ NBZ = int(NBZ)
 FFdataset = utils.FormFactorDataset(train_data, y, Nx, Ny, NBZ)
 dataset_size = len(FFdataset)
 print(f"Dataset size: {dataset_size}")
-train_ratio = 0.8
+train_ratio = 0.9
 train_size = int(dataset_size * train_ratio)
 test_ratio = 1 - train_ratio
 test_size = dataset_size - train_size
@@ -29,15 +32,18 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle = False)
 all_loader = DataLoader(FFdataset, shuffle = False)
 
 # Define the VAE model
-hidden_dim = 32 #2048
-latent_dim = 3 # 5 #10
+hidden_dim = 128 #2048 #32 #2048
+latent_dim = 3 #8 #10
+print(f"Using hidden_dim: {hidden_dim}, latent_dim: {latent_dim}")
 #model = VAEclass.VAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
+
 d_model = 16
 n_layers = 2
 n_heads = 4
 model = VAEclass.ConvTransformerVAE(
     input_dim=2*N*N*NBZ, k_components=N, hidden_dim=hidden_dim, latent_dim=latent_dim, 
     d_model=d_model, n_layers=n_layers,n_heads=n_heads).to(device)
+
 num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 print(f"Number of trainable parameters in the model: {num_params}")
 
@@ -59,6 +65,7 @@ for epoch in range(num_epochs):
     VAEclass.test(model, test_loader, prev_updates, device=device)
 
 
-model_save_path = f'./checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
+#model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
+model_save_path = f'./checkpoints/vaeMixture_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
 torch.save(model.state_dict(), model_save_path)
 print(f"Model saved to {model_save_path}")
