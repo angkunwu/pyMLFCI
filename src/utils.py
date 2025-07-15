@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import torch 
+from torch.utils.data import Dataset
 
 # read data
 def ReadAllData(Nx,Ny):
@@ -107,3 +109,42 @@ def convert1Dto2D(data1d,N,NBZ):
     # transpose the data2d
     data2d = data2d.T
     return data2d
+
+
+class FormFactorDataset(Dataset):
+    def __init__(self, data, labels, Nx, Ny, NBZ, transform=None):
+        """
+        Args:
+            data(numpy.ndarray): 2D array where each column is a flattened image.
+            labels (numpy.ndarray): Labels for corresponding each image
+            Nx (int): Number of rows in the BZ.
+            Ny (int): Number of columns in the BZ.
+            NBZ (int): Number of BZ.
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
+        self.data = data
+        self.labels = labels
+        self.transform = transform
+        self.Nx = Nx
+        self.Ny = Ny
+        self.NBZ = NBZ
+
+    def __len__(self):
+        return self.data.shape[1]  # number of samples
+
+    def __getitem__(self, idx):
+        data1d = self.data[:, idx]
+        data_real = data1d.real
+        data_imag = data1d.imag
+        data_combined = np.concatenate((data_real, data_imag), axis = 0)
+        # Normalize the data (optional, depending on your model)
+        data_combined = (data_combined) / 2.0  # Scale to [-0.5, 0.5]
+        # Convert to PyTorch tensor
+        data_tensor = torch.tensor(data_combined, dtype=torch.float32)
+        # Apply any additional transformations
+        if self.transform:
+            data_tensor = self.transform(data_tensor)
+        label = self.labels[idx]
+        label_tensor = torch.tensor(bool(label), dtype = torch.bool)
+        return data_tensor, label_tensor
+    
