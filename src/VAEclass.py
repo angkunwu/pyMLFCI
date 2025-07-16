@@ -665,23 +665,120 @@ class BottomConvVAE(nn.Module):
         Decode latent space to original input space.
         """
         return self.decoder(z)  # (batch, input_dim)
-        print(f"Input to decoder: {z.shape}")
-        x = self.decoder[0](z)
-        print(f"After first Linear layer: {x.shape}")
-        x = self.decoder[1](x)
-        x = self.decoder[2](x)
-        print(f"After second Linear layer: {x.shape}")
-        x = self.decoder[3](x)
-        x = self.decoder[4](x)
-        print(f"After Unflatten: {x.shape}")
-        x = self.decoder[5](x)
-        print(f"After ConvTranspose2d: {x.shape}")
-        x = self.decoder[6](x)
-        print(f"After Flatten: {x.shape}")
-        x = self.decoder[7](x)
-        print(f"After final Linear layer: {x.shape}")
-        return x
     
+    def reparametrize(self, dist):
+        """Reparameterization trick."""
+        return dist.rsample()
+
+    def forward(self, x, compute_loss: bool = True):
+        """Forward pass through the VAE."""
+        dist = self.encode(x)
+        z = self.reparametrize(dist)
+        recon_x = self.decode(z)
+
+        if not compute_loss:
+            return VAEOutput(
+                z_dist=dist,
+                z_sample=z,
+                x_recon=recon_x,
+                loss=None,
+                loss_recon=None,
+                loss_kl=None,
+            )
+
+        # Compute loss terms
+        loss_recon = F.binary_cross_entropy(recon_x, x + 0.5, reduction='none').sum(-1).mean()
+        std_normal = torch.distributions.Independent(
+            torch.distributions.Normal(torch.zeros_like(z), torch.ones_like(z)), 1
+        )
+        loss_kl = torch.distributions.kl_divergence(dist, std_normal).mean()
+        loss = loss_recon + loss_kl
+        return VAEOutput(
+            z_dist=dist,
+            z_sample=z,
+            x_recon=recon_x,
+            loss=loss,
+            loss_recon=loss_recon,
+            loss_kl=loss_kl,
+        )
+    
+
+class TransformerVAE(nn.Module):
+    """
+    Bottom convolution VAE with Conv1D + Fully Connected layers for form factor learning.
+    """
+    def __init__(self, input_dim, hidden_dim, latent_dim,
+                 n_heads=8, n_layers=4):
+        super(TransformerVAE, self).__init__()
+
+        d_feature = int(np.sqrt(hidden_dim))
+        while hidden_dim % d_feature != 0:
+            d_feature -= 1
+        d_sequence = hidden_dim // d_feature
+        self.d_feature = d_feature
+        self.d_sequence = d_sequence
+
+        # Transformer encoder - decreasing dimensions like FC version
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_feature, nhead=n_heads, dim_feedforward=hidden_dim,
+            dropout=0.1, activation='gelu', batch_first=True
+        )
+        # Fully Connected Encoder + convolutional layers
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Unflatten(1, (d_sequence, d_feature)), # Reshape to (batch_size, d_sequence, d_feature)
+            nn.TransformerEncoder(encoder_layer, num_layers=n_layers),
+            nn.SiLU(),
+            nn.Flatten(),  # Flatten back to 1D
+            nn.Linear(d_sequence * d_feature, 2 * latent_dim),  # Adjust dimensions for Conv2d output
+        )
+        self.softplus = nn.Softplus()
+        # Transformer decoder
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=d_feature, nhead=n_heads, dim_feedforward=hidden_dim,
+            dropout=0.1, activation='gelu', batch_first=True
+        )
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=n_layers)
+
+        # Fully connected layers for decoding
+        self.fc_decoder = nn.Sequential(
+            nn.Linear(latent_dim, d_sequence * d_feature),
+            nn.SiLU(),
+        )
+        self.output_layer = nn.Sequential(
+            nn.Flatten(),  # Flatten back to 1D
+            nn.Linear(d_sequence * d_feature, input_dim),  # Final output layer
+            nn.Sigmoid()  # Sigmoid activation for output
+        )
+
+    def encode(self, x, eps: float = 1e-8):
+        """
+        Encode input to latent space.
+        """
+        x = self.encoder(x)  # (batch, 2 * latent_dim)
+        mu, logvar = torch.chunk(x, 2, dim=-1)
+        scale = self.softplus(logvar) + eps
+        base_dist = torch.distributions.Normal(mu, scale)
+        return torch.distributions.Independent(base_dist, 1)
+
+    def decode(self, z):
+        """
+        Decode latent space to original input space.
+        """
+        #return self.decoder(z)  # (batch, input_dim)
+        batch_size = z.shape[0]
+        # FC decoder
+        decoded = self.fc_decoder(z) # (batch_size, d_model * matrix_rows)
+        decoded = decoded.view(batch_size,self.d_sequence, self.d_feature) # (batch_size, d_model, matrix_rows)
+        target_seq = torch.zeros_like(decoded, device=z.device)
+        # Create memory for transformer decoder
+        memory = decoded
+        #target_seq = torch.zeros(batch_size, self.matrix_rows, self.d_model, device=z.device)
+        decoded_features = self.transformer_decoder(target_seq, memory) # (batch, matrix_rows, d_model)
+        x = self.output_layer(decoded_features)
+        return x
+        
     def reparametrize(self, dist):
         """Reparameterization trick."""
         return dist.rsample()

@@ -36,9 +36,9 @@ weight_decay = 1e-3
 num_epochs = 100
 
 #d_model = 16
-#n_layers = 2
-#n_heads = 4
-kernel_size = 3  # Adjusted kernel size
+n_layers = 4
+n_heads = 8
+#kernel_size = 3  # Adjusted kernel size
 
 # Iterate over latent_dim values
 for latent_dim in latent_dims:
@@ -46,9 +46,10 @@ for latent_dim in latent_dims:
     
     # Define the VAE model
     #model = VAEclass.VAE(input_dim=2 * N * N * NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
-    model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, 
-                               latent_dim=latent_dim, kernel_size=kernel_size).to(device)
-
+    #model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, 
+    #                           latent_dim=latent_dim, kernel_size=kernel_size).to(device)
+    model = VAEclass.TransformerVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, 
+                               latent_dim=latent_dim,n_layers=n_layers,n_heads=n_heads).to(device)
     #model = VAEclass.ConvTransformerVAE(input_dim=2*N*N*NBZ, k_components=N, hidden_dim=hidden_dim, 
     #                                    latent_dim=latent_dim, d_model=d_model, n_layers=n_layers,
     #                                    n_heads=n_heads).to(device)
@@ -70,6 +71,7 @@ for latent_dim in latent_dims:
     
     # Save the model
     #model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
-    model_save_path = f'../checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}.pth'
+    #model_save_path = f'../checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}.pth'
+    model_save_path = f'../checkpoints/vaeTrans_lat_{latent_dim}_hid_{hidden_dim}.pth'
     torch.save(model.state_dict(), model_save_path)
     print(f"Model with latent_dim {latent_dim} saved to {model_save_path}")
