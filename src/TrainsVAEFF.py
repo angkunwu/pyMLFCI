@@ -12,6 +12,8 @@ print(f"Using device: {device}")
 # Load data
 Nx, Ny = 3, 5
 train_data, y = utils.ReadAllData(Nx, Ny)
+train_data, y = utils.filterData(train_data,y)
+print(f"sample size: {train_data.shape[0]}")
 N = Nx * Ny
 NBZ = train_data[:, 0].shape[0] // (N * N)
 
@@ -30,7 +32,7 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 # Hyperparameters
 hidden_dim = 2048 #128 #2048
 #latent_dims = [2,3,4,5,8,10, 15, 20, 25, 30, 40, 50] # [2,3,4,5,10,20,30,40,50]
-latent_dims = [2,3,4,5,10]
+latent_dims = [2,3,4,5,10,20,30]
 learning_rate = 1e-3
 weight_decay = 1e-3
 num_epochs = 100

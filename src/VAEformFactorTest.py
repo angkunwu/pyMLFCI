@@ -20,11 +20,18 @@ print(f"Dataset size: {dataset_size}")
 all_loader = DataLoader(FFdataset, shuffle = False)
 
 hidden_dim = 2048
-latent_dim = 5
+latent_dim = 3
 num_epochs = 100
 # Load the model
 model_load_path = f'./checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
 model = VAEclass.VAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
+#kernel_size = 3
+#model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}.pth'
+#model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim,latent_dim=latent_dim, kernel_size=kernel_size).to(device)
+
+#model_load_path = f'./checkpoints/vaeTrans_lat_{latent_dim}_hid_{hidden_dim}.pth'
+#model = VAEclass.TransformerVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
+
 model.load_state_dict(torch.load(model_load_path))
 model.eval()  # Set the model to evaluation mode
 print(f"Model loaded from {model_load_path}")
@@ -177,4 +184,4 @@ gendata = utils.convert1Dto2D(dataNP[:(N*N*NBZ)],N,NBZ) + 1j*utils.convert1Dto2D
 np.abs(gendata - realdata)
 # find the maximum absolute difference
 max_diff = np.max(np.abs(gendata - realdata))
-
+max_diff

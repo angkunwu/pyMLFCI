@@ -147,4 +147,17 @@ class FormFactorDataset(Dataset):
         label = self.labels[idx]
         label_tensor = torch.tensor(bool(label), dtype = torch.bool)
         return data_tensor, label_tensor
-    
+
+
+def filterData(train_data,y):
+    Samples = np.sum(y)
+    train_data_new = np.zeros((train_data.shape[0],Samples),dtype=complex)
+    ynew = np.zeros((Samples,1),dtype=bool)
+    CurInd = 0
+    for k in range(train_data.shape[1]):
+        if y[k]:
+            train_data_new[:,CurInd] = train_data[:,k]
+            ynew[CurInd] = y[k]
+            CurInd = CurInd + 1
+    ynew = ynew.flatten()
+    return train_data_new, ynew
