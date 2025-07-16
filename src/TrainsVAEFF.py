@@ -29,22 +29,26 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 # Hyperparameters
 hidden_dim = 2048 #128 #2048
-latent_dims = [2,3,4,5,8,10, 15, 20, 25, 30, 40, 50] # [2,3,4,5,10,20,30,40,50]
-#latent_dims = [2,3,4,5,10,20,30,40]
+#latent_dims = [2,3,4,5,8,10, 15, 20, 25, 30, 40, 50] # [2,3,4,5,10,20,30,40,50]
+latent_dims = [2,3,4,5,10]
 learning_rate = 1e-3
 weight_decay = 1e-3
 num_epochs = 100
 
-d_model = 16
-n_layers = 2
-n_heads = 4
+#d_model = 16
+#n_layers = 2
+#n_heads = 4
+kernel_size = 3  # Adjusted kernel size
 
 # Iterate over latent_dim values
 for latent_dim in latent_dims:
     print(f"Training model with latent_dim: {latent_dim}")
     
     # Define the VAE model
-    model = VAEclass.VAE(input_dim=2 * N * N * NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
+    #model = VAEclass.VAE(input_dim=2 * N * N * NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
+    model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, 
+                               latent_dim=latent_dim, kernel_size=kernel_size).to(device)
+
     #model = VAEclass.ConvTransformerVAE(input_dim=2*N*N*NBZ, k_components=N, hidden_dim=hidden_dim, 
     #                                    latent_dim=latent_dim, d_model=d_model, n_layers=n_layers,
     #                                    n_heads=n_heads).to(device)
@@ -65,7 +69,7 @@ for latent_dim in latent_dims:
         VAEclass.test(model, test_loader, prev_updates, device=device)
     
     # Save the model
-    model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
-    #model_save_path = f'../checkpoints/vaeMixture_lat_{latent_dim}_hid_{hidden_dim}_dmodel_{d_model}_nhead_{n_heads}_nlayer_{n_layers}.pth'
+    #model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
+    model_save_path = f'../checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}.pth'
     torch.save(model.state_dict(), model_save_path)
     print(f"Model with latent_dim {latent_dim} saved to {model_save_path}")
