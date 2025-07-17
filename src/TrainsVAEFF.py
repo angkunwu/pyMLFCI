@@ -34,7 +34,7 @@ hidden_dim = 2048 #128 #2048
 latent_dims = [2,3,4,5,8,10, 20, 30, 40, 50] # [2,3,4,5,10,20,30,40,50]
 #latent_dims = [2,3,4,5,10,20,30]
 learning_rate = 1e-3
-weight_decay = 1e-3 #1e-3
+weight_decay = 1e-2 #1e-3 is too small for regularization
 num_epochs = 100
 
 #d_model = 16

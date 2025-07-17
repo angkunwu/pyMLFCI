@@ -204,7 +204,8 @@ class VAE(nn.Module):
                 loss_kl = None,
             )
         # compute loss terms
-        loss_recon = F.binary_cross_entropy(recon_x, x+0.5, reduction='none').sum(-1).mean()
+        #loss_recon = F.binary_cross_entropy(recon_x, x+0.5, reduction='none').sum(-1).mean() # total sum of binary cross entropy
+        loss_recon = F.mse_loss(recon_x, x + 0.5, reduction='sum')
         #std_normal = torch.distributions.MultivariateNormal(
         #    torch.zeros_like(z, device=z.device),
         #    scale_tril = torch.eye(z.shape[-1],device=z.device).unsqueeze(0).expand(z.shape[0],-1,-1),
@@ -312,7 +313,7 @@ def test(model, dataloader, cur_step, writer=None,device='cpu'):
     test_loss /= len(dataloader)
     test_recon_loss /= len(dataloader)
     test_kl_loss /= len(dataloader)
-    print(f'====> Test set loss: {test_loss:.4f} (BCE: {test_recon_loss}, KLD: {test_kl_loss})')
+    print(f'====> Test set loss: {test_loss:.4f}, Recon Loss: {test_recon_loss}, KLD: {test_kl_loss}')
     if writer is not None:
         writer.add_scalar('Loss/test', test_loss, global_step=cur_step)
         writer.add_scalar('Loss/test/BCE', output.loss_recon.item(), global_step=cur_step)
@@ -472,7 +473,8 @@ class ConvTransformerVAE(nn.Module):
                 loss_kl = None,
             )
         # compute loss terms
-        loss_recon = F.binary_cross_entropy(recon_x, x+0.5, reduction='none').sum(-1).mean()
+        #loss_recon = F.binary_cross_entropy(recon_x, x+0.5, reduction='none').sum(-1).mean()
+        loss_recon = F.mse_loss(recon_x, x + 0.5, reduction='sum')
         #std_normal = torch.distributions.MultivariateNormal(
         #    torch.zeros_like(z, device=z.device),
         #    scale_tril = torch.eye(z.shape[-1],device=z.device).unsqueeze(0).expand(z.shape[0],-1,-1),
@@ -594,7 +596,8 @@ class SimpleConvVAE(nn.Module):
             )
 
         # Compute loss terms
-        loss_recon = F.binary_cross_entropy(recon_x, x + 0.5, reduction='none').sum(-1).mean()
+        #loss_recon = F.binary_cross_entropy(recon_x, x + 0.5, reduction='none').sum(-1).mean()
+        loss_recon = F.mse_loss(recon_x, x + 0.5, reduction='sum')
         std_normal = torch.distributions.Independent(
             torch.distributions.Normal(torch.zeros_like(z), torch.ones_like(z)), 1
         )
@@ -687,7 +690,8 @@ class BottomConvVAE(nn.Module):
             )
 
         # Compute loss terms
-        loss_recon = F.binary_cross_entropy(recon_x, x + 0.5, reduction='none').sum(-1).mean()
+        #loss_recon = F.binary_cross_entropy(recon_x, x + 0.5, reduction='none').sum(-1).mean()
+        loss_recon = F.mse_loss(recon_x, x + 0.5, reduction='sum')
         std_normal = torch.distributions.Independent(
             torch.distributions.Normal(torch.zeros_like(z), torch.ones_like(z)), 1
         )
@@ -800,7 +804,8 @@ class TransformerVAE(nn.Module):
             )
 
         # Compute loss terms
-        loss_recon = F.binary_cross_entropy(recon_x, x + 0.5, reduction='none').sum(-1).mean()
+        #loss_recon = F.binary_cross_entropy(recon_x, x + 0.5, reduction='none').sum(-1).mean()
+        loss_recon = F.mse_loss(recon_x, x + 0.5, reduction='sum')
         std_normal = torch.distributions.Independent(
             torch.distributions.Normal(torch.zeros_like(z), torch.ones_like(z)), 1
         )
