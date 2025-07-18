@@ -23,7 +23,7 @@ hidden_dim = 2048
 latent_dim = 3
 num_epochs = 100
 # Load the model
-model_load_path = f'./checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
+model_load_path = f'./checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_decayrate_n2.pth'
 model = VAEclass.VAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
 #kernel_size = 3
 #model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}.pth'
@@ -56,6 +56,18 @@ def dataTophase(Tensordata):
     BZind = int(NBZ/2)+1 # choose the center BZ
     data_phase = np.angle(dataComplex[:,((BZind-1)*N):(BZind*N)])
     return data_phase
+
+def dataToTensor(npdata,shift=False):
+    data_real = npdata.real
+    data_imag = npdata.imag
+    data_combined = np.concatenate((data_real, data_imag), axis = 0)
+    # Normalize the data (optional, depending on your model)
+    data_combined = (data_combined) / 2.0  # Scale to [-0.5, 0.5]
+    if shift:
+        data_combined += 0.5  # Shift to [0, 1] range
+    # Convert to PyTorch tensor
+    data_tensor = torch.tensor(data_combined, dtype=torch.float32)
+    return data_tensor
 
 FormFactor2d = utils.convert1Dto2D(train_data[:,0],N,NBZ)
 BZind = int(NBZ/2)+1 # choose the center BZ
@@ -120,6 +132,18 @@ plt.scatter(z_all[:, 0], z_all[:, 1], c=y_all,cmap='RdBu')
 plt.colorbar()
 plt.show()
 
+from mpl_toolkits.mplot3d import Axes3D
+fig = plt.figure(figsize=(10, 10))
+ax = fig.add_subplot(111, projection='3d')
+sc = ax.scatter(z_all[:, 0], z_all[:, 1], z_all[:, 2], c=y_all, cmap='RdBu')
+# Add color bar
+cbar = plt.colorbar(sc, ax=ax, shrink=0.5, aspect=10)
+cbar.set_label('Labels')
+ax.set_xlabel('Latent Dimension 1')
+ax.set_ylabel('Latent Dimension 2')
+ax.set_zlabel('Latent Dimension 3')
+plt.show()
+
 # Interpolating in latent space
 n = 10
 z1 = torch.linspace(0,1,n)
@@ -134,7 +158,7 @@ for i in range(n):
     ax[i].axis('off')
 plt.show()
 
-
+alphas = np.linspace(0.78943,3.517548,100) # ind=0,49,99
 z0 = torch.tensor(z_all[0], dtype=torch.float32).to(device)
 z1 = torch.tensor(z_all[99], dtype=torch.float32).to(device)
 # generate a linear interpolation between z0 and z1
@@ -143,11 +167,23 @@ alpha = torch.linspace(0, 1, n).unsqueeze(1).to(device)  # Shape: (n, 1)
 z_interp = (1 - alpha) * z0.unsqueeze(0) + alpha * z1.unsqueeze(0)  # Broadcasting
 samples_interp = model.decode(z_interp)
 
-fig, ax = plt.subplots(1,n,figsize=(n,1))
+
+#alphas = np.linspace(0.78943,3.517548,100) # ind=0,49,99
+model.eval()
+image = dataToTensor(train_data[:,49]).unsqueeze(0)
+zs = np.zeros((n, latent_dim))
+with torch.no_grad():
+    for i in range(n):
+        output = model(image, compute_loss=False)
+        zs[i] = output.z_sample.cpu().numpy()
+
+samples_interp = model.decode(torch.tensor(zs, dtype=torch.float32).to(device))
+
+
+samples_interp = model.decode(torch.tensor(z_all[:100:5], dtype=torch.float32).to(device))
+samples_interp = torch.zeros_like(samples_interp)
 for i in range(n):
-    ax[i].imshow(dataTophase(samples_interp[i]),cmap='RdBu')
-    ax[i].axis('off')
-plt.show()
+    samples_interp[i] = dataToTensor(train_data[:,5*i],shift=True)
 
 import pandas as pd
 
