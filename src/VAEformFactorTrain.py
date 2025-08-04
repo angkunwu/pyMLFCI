@@ -11,9 +11,14 @@ from src import VAEclass
 device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 print(f"Using device: {device}")
 
-Nx, Ny = 3, 5
+Nx, Ny = 4,5 #3, 5
 train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
-train_data, y = utils.filterData(train_data,y)
+#train_data, y = utils.ReadAllData(Nx, Ny, 
+#                                   alphas = np.linspace(0.35,3.55,700),
+#                                   c0s1 = np.linspace(-1.0,1.0,100),
+#                                   c0s2 = np.linspace(-0.7,0.7,100),
+#                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
+#train_data, y = utils.filterData(train_data,y)
 N = Nx * Ny
 NBZ = train_data[:,0].shape[0]/N/N
 NBZ = int(NBZ)
@@ -43,8 +48,8 @@ n_heads = 8
 #model = VAEclass.TransformerVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, 
 #                               latent_dim=latent_dim,n_layers=n_layers,n_heads=n_heads).to(device)
 kernel_size = 3
-#model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, 
-#                               latent_dim=latent_dim, kernel_size=kernel_size).to(device)
+model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, 
+                               latent_dim=latent_dim, kernel_size=kernel_size).to(device)
 """
 d_model = 16
 model = VAEclass.ConvTransformerVAE(
@@ -75,7 +80,9 @@ for epoch in range(num_epochs):
     
 
 
-#model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
-model_save_path = f'./checkpoints/vaeMixture_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}.pth'
+#model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}_Nx{Nx}Ny{Ny}.pth'
+#model_save_path = f'./checkpoints/vaeMixture_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}_Nx{Nx}Ny{Ny}.pth'
+model_save_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}.pth'
+#model_save_path = f'./checkpoints/vaeTrans_lat_{latent_dim}_hid_{hidden_dim}_Nx{Nx}Ny{Ny}.pth'
 torch.save(model.state_dict(), model_save_path)
 print(f"Model saved to {model_save_path}")

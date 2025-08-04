@@ -106,17 +106,23 @@ for k in range(Samples):
     Fxys[k] = sum(Bcurs)/2/np.pi
     trg[k] = sum(trgs)/2/np.pi
     trg1[k] = sum(trg1s)/2/np.pi/2
+Component2d = convert1Dto2D(barx,N,NBZ)
+Fxy0 = sum(FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=False))/2/np.pi
+trg0 = sum(FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=True))/2/np.pi/2
 
 plt.figure()
-plt.scatter(np.arange(1,Samples+1),Fxys,label=r'$F_{xy}$')
-plt.scatter(np.arange(1,Samples+1),trg1,label=r'$\mathrm{tr} g_1$')
-plt.scatter(np.arange(1,Samples+1),trg,label=r'$\mathrm{tr} g_2$')
+plt.scatter(np.arange(1,Samples+1),Fxys,label=r'$C_B$',s=10)
+plt.scatter(np.arange(1,Samples+1),trg1,label=r'$C_{tr(g)}$',s=5)
+#plt.scatter(np.arange(1,Samples+1),trg,label=r'$\mathrm{tr} g_2$')
+plt.scatter(0,Fxy0,s=10,c='red',label=r'$C_B, \bar{x}$')
+plt.scatter(0,trg0,s=10,c='black',label=r'$C_{tr(g)}, \bar{x}$')
 plt.xlabel(r'principal component $j$',fontsize=12)
 plt.ylabel(r'geometric quantities',fontsize=12)
-plt.legend(fontsize=12,loc='upper right')
+plt.legend(fontsize=12, loc='upper right', bbox_to_anchor=(1, 0.95))
 # set x, y ticks size
 plt.xticks(fontsize=12)
 plt.yticks(fontsize=12)
+plt.xlim(-1,50)
 plt.show()
 # save to a .pdf file to the Desktop
 #pt = "/Users/angkunwu/Desktop/"
@@ -146,6 +152,50 @@ plt.xticks(fontsize=12)
 plt.yticks(fontsize=12)
 plt.xlim(0,200)
 plt.show()
+
+plt.figure()
+plt.scatter(np.arange(1,expansions.shape[0]+1),np.abs(expansions[149,:]),label=r'$\mathrm{1st}$')
+plt.scatter(np.arange(1,expansions.shape[0]+1),np.abs(expansions[249,:]),label=r'$\mathrm{2nd}$')
+plt.scatter(np.arange(1,expansions.shape[0]+1),np.abs(expansions[349,:]),label=r'$\mathrm{3rd}$')
+plt.xlabel(r'expansion order $j$',fontsize=12)
+plt.ylabel(r'amplitude $\mathbf{u}_j\mathbf{x}_n$',fontsize=12)
+plt.legend(fontsize=12, loc='upper right', bbox_to_anchor=(1, 0.95))
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+plt.xlim(0,20)
+plt.show()
+
+
+Fxys = np.zeros(100)
+trg1 = np.zeros(100)
+Fxystd = np.zeros(100)
+trg1std = np.zeros(100)
+for k in range(100):
+    Component2d = convert1Dto2D(train_data[:,k],N,NBZ)
+    Bcurs = FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=False)
+    trg1s = FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=True)
+    Fxys[k] = sum(Bcurs)/2/np.pi
+    trg1[k] = sum(trg1s)/2/np.pi/2
+    Fxystd[k] = np.std(Bcurs)/2/np.pi
+    trg1std[k] = np.std(trg1s)/2/np.pi/2
+
+plt.figure()
+plt.scatter(np.arange(1,100+1),Fxys,label=r'$C_B$',s=10)
+plt.scatter(np.arange(1,100+1),trg1,label=r'$C_{tr(g)}$',s=10)
+plt.scatter(np.arange(1,100+1),Fxystd*8,label=r'$8\sigma_{C_B}$',s=10)
+plt.scatter(np.arange(1,100+1),trg1std*8,label=r'$8\sigma_{C_{tr(g)}}$',s=10)
+plt.xlabel(r'Sample $j$',fontsize=12)
+plt.ylabel(r'geometric quantities',fontsize=12)
+# add vertical line at 100
+plt.axvline(x=1, color='black', linestyle='--')
+plt.axvline(x=100, color='black', linestyle='--')
+plt.axvline(x=49, color='black', linestyle='--')
+plt.legend(fontsize=12, loc='upper right', bbox_to_anchor=(1,1))
+plt.xticks(fontsize=12)
+plt.yticks(fontsize=12)
+plt.xlim(0,101)
+plt.show()
+
 
 def approxFF(xn,normalvectors,ExpOrder):
     xnT = xn.conj().T
