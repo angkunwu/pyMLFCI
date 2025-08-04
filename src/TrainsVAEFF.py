@@ -10,11 +10,11 @@ device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 # Load data
-Nx, Ny = 4, 5
-train_data, y = utils.ReadAllData(Nx, Ny)
-#train_data, y = utils.ReadAllData(4, 6, alphas = np.linspace(0.35,3.55,700),c0s1 = np.linspace(-1.0,1.0,100),c0s2 = np.linspace(-0.7,0.7,100),c0s3 = np.linspace(-0.5,0.5,100)) 
+Nx, Ny = 4, 6
+#train_data, y = utils.ReadAllData(Nx, Ny)
+train_data, y = utils.ReadAllData(4, 6, alphas = np.linspace(0.35,3.55,700),c0s1 = np.linspace(-1.0,1.0,100),c0s2 = np.linspace(-0.7,0.7,100),c0s3 = np.linspace(-0.5,0.5,100)) 
 train_data, y = utils.filterData(train_data,y)
-print(f"sample size: {train_data.shape[0]}")
+print(f"sample size: {train_data.shape[0]} system size (Nx, Ny): ({Nx}, {Ny})")
 N = Nx * Ny
 NBZ = train_data[:, 0].shape[0] // (N * N)
 
