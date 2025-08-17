@@ -8,13 +8,13 @@ from src import utils
 
 device = 'cpu'
 
-Nx, Ny = 3,5 #4,6 #3, 5
-train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
-#train_data, y = utils.ReadAllData(Nx, Ny, 
-#                                   alphas = np.linspace(0.35,3.55,700),
-#                                   c0s1 = np.linspace(-1.0,1.0,100),
-#                                   c0s2 = np.linspace(-0.7,0.7,100),
-#                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
+Nx, Ny = 4,6 #3, 5
+#train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
+train_data, y = utils.ReadAllData(Nx, Ny, 
+                                   alphas = np.linspace(0.35,3.55,700),
+                                   c0s1 = np.linspace(-1.0,1.0,100),
+                                   c0s2 = np.linspace(-0.7,0.7,100),
+                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
 N = Nx * Ny
 NBZ = train_data[:,0].shape[0]/N/N
 NBZ = int(NBZ)
@@ -140,13 +140,15 @@ plt.show()
 from mpl_toolkits.mplot3d import Axes3D
 fig = plt.figure(figsize=(10, 10))
 ax = fig.add_subplot(111, projection='3d')
-sc = ax.scatter(z_all[:, 0], z_all[:, 1], z_all[:, 2], c=y_all, cmap='RdBu')
+sc = ax.scatter(z_all[:, 0], z_all[:, 1], z_all[:, 2], c=y_all, cmap='RdBu',
+                edgecolors='none',linewidths=0)
 # Add color bar
-cbar = plt.colorbar(sc, ax=ax, shrink=0.5, aspect=10)
-cbar.set_label('IsFCI')
-ax.set_xlabel('Latent Dimension 1')
-ax.set_ylabel('Latent Dimension 2')
-ax.set_zlabel('Latent Dimension 3')
+#cbar = plt.colorbar(sc, ax=ax, shrink=0.5, aspect=10)
+#cbar.set_label('IsFCI')
+# set x label as z_1 with latex math
+ax.set_xlabel(r'$z_1$', fontsize=12)
+ax.set_ylabel(r'$z_2$', fontsize=12)
+ax.set_zlabel(r'$z_3$', fontsize=12)
 plt.show()
 
 # Interpolating in latent space
@@ -189,8 +191,8 @@ with torch.no_grad():
 
 samples_interp = model.decode(torch.tensor(zs, dtype=torch.float32).to(device))
 
-
-samples_interp = model.decode(torch.tensor(z_all[:100], dtype=torch.float32).to(device))
+indices = np.linspace(0, 699, 100, dtype=int)
+samples_interp = model.decode(torch.tensor(z_all[indices], dtype=torch.float32).to(device))
 samples_interp = torch.zeros_like(samples_interp)
 for i in range(100):
     samples_interp[i] = dataToTensor(train_data[:,i],shift=True)

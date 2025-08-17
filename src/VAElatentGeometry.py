@@ -9,7 +9,7 @@ from src import FormFactorFuns as FFFs
 
 device = 'cpu'
 
-Nx, Ny = 3, 5
+Nx, Ny = 3,6
 train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
 #train_data, y = utils.ReadAllData(Nx, Ny, 
 #                                   alphas = np.linspace(0.35,3.55,700),
@@ -29,7 +29,7 @@ hidden_dim = 2048 #1024 #2048
 latent_dim = 3
 num_epochs = 100
 
-kernel_size = 3
+kernel_size = 3 #3
 model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}.pth'
 model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim,latent_dim=latent_dim, kernel_size=kernel_size).to(device)
 
@@ -113,7 +113,8 @@ plt.show()
 from mpl_toolkits.mplot3d import Axes3D
 fig = plt.figure(figsize=(10, 10))
 ax = fig.add_subplot(111, projection='3d')
-sc = ax.scatter(z_new[sortinds, 0], z_new[sortinds, 1], z_new[sortinds, 2],c=trg1[sortinds], cmap='RdBu')
+#sc = ax.scatter(z_new[sortinds, 0], z_new[sortinds, 1], z_new[sortinds, 2],c=trg1[sortinds], cmap='RdBu')
+sc = ax.scatter(z_all[:, 0], z_all[:, 1], z_all[:, 2],c=y_all, cmap='RdBu')
 # Add color bar
 cbar = plt.colorbar(sc, ax=ax, shrink=0.5, aspect=10)
 cbar.set_label(r'$C_{tr(g)}$')
@@ -135,7 +136,7 @@ while cursam < Samples:
     z_temp = torch.zeros((1, latent_dim), dtype=torch.float32)
     for i in range(latent_dim):
         #z_temp[:,i] = torch.FloatTensor(1).uniform_(-maxz[i]*1.1, maxz[i]*1.1)
-        z_temp[:,i] = torch.FloatTensor(1).uniform_(-maxz[i]*3, maxz[i]*3)
+        z_temp[:,i] = torch.FloatTensor(1).uniform_(-maxz[i]*2, maxz[i]*2)
     imagetemp = model.decode(z_temp)
     Component2d = TensorTo2Ddata(imagetemp[0])
     Bcurs = FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=False)
@@ -143,7 +144,7 @@ while cursam < Samples:
     Ctemp = sum(Bcurs)/2/np.pi
     trgtemp = sum(trg1s)/2/np.pi/2
     #if np.abs(trgtemp) > 1.5 and np.abs(trgtemp) < 1.7 and np.abs(Ctemp+1) < 0.01:
-    if np.abs(trgtemp) > 1.0 and np.abs(Ctemp+1) < 0.01:
+    if trgtemp > 1.0 and np.abs(Ctemp+1) < 0.01:
         z_new[cursam] = z_temp
         Fxys[cursam] = Ctemp
         trg1[cursam] = trgtemp

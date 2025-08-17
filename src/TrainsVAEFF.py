@@ -13,7 +13,7 @@ print(f"Using device: {device}")
 Nx, Ny = 4, 6
 #train_data, y = utils.ReadAllData(Nx, Ny)
 train_data, y = utils.ReadAllData(4, 6, alphas = np.linspace(0.35,3.55,700),c0s1 = np.linspace(-1.0,1.0,100),c0s2 = np.linspace(-0.7,0.7,100),c0s3 = np.linspace(-0.5,0.5,100)) 
-train_data, y = utils.filterData(train_data,y)
+#train_data, y = utils.filterData(train_data,y)
 print(f"sample size: {train_data.shape[0]} system size (Nx, Ny): ({Nx}, {Ny})")
 N = Nx * Ny
 NBZ = train_data[:, 0].shape[0] // (N * N)
@@ -74,7 +74,7 @@ for latent_dim in latent_dims:
     
     # Save the model
     #model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_decayrate_n2_Nx{Nx}Ny{Ny}.pth'
-    model_save_path = f'../checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}.pth'
+    model_save_path = f'../checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}all.pth'
     #model_save_path = f'../checkpoints/vaeTrans_lat_{latent_dim}_hid_{hidden_dim}_Nx{Nx}Ny{Ny}.pth'
     torch.save(model.state_dict(), model_save_path)
     print(f"Model with latent_dim {latent_dim} saved to {model_save_path}")
