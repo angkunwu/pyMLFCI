@@ -8,8 +8,10 @@ def ReadAllData(Nx,Ny,
                 alphas = np.linspace(0.78943,3.517548,100),
                 c0s1 = np.linspace(-0.8,0.8,100),
                 c0s2 = np.linspace(-0.6,0.6,100),
-                c0s3 = np.linspace(-0.5,0.5,100)):
-    pt = "~/QuarticCrossing/data/" + str(Nx) + str(Ny) + "data/" 
+                c0s3 = np.linspace(-0.5,0.5,100),
+                folder = "~/QuarticCrossing/data/"
+                ):
+    pt = folder + str(Nx) + str(Ny) + "data/" 
     #alphas = np.linspace(0.78943,3.517548,100)
     atemp = np.round(alphas[0],5)
     file_path = pt + "QBCPFFNx" + str(Nx) + "Ny" + str(Ny) + "A" + str(atemp) + ".csv"
