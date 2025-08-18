@@ -44,6 +44,7 @@ mpmath==1.3.0
 namex==0.0.8
 nest-asyncio==1.6.0
 networkx==3.2.1
+nflows==0.14
 numpy==2.0.2
 opt_einsum==3.4.0
 optree==0.13.1

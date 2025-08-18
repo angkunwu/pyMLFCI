@@ -126,8 +126,10 @@ y_all = []
 with torch.no_grad():
     for data,target in tqdm(all_loader, desc='Encoding'):
         data = data.to(device)
-        output = model(data,compute_loss=False)
-        z_all.append(output.z_sample.cpu().numpy())
+        #output = model(data,compute_loss=False)
+        #z_all.append(output.z_sample.cpu().numpy())
+        disttemp = model.encode(data) 
+        z_all.append(disttemp.base_dist.loc) # get the mean value of each z
         y_all.append(target.numpy())
 z_all = np.concatenate(z_all,axis=0)
 y_all = np.concatenate(y_all,axis=0)
@@ -191,7 +193,7 @@ with torch.no_grad():
 
 samples_interp = model.decode(torch.tensor(zs, dtype=torch.float32).to(device))
 
-indices = np.linspace(0, 699, 100, dtype=int)
+indices = np.linspace(0, 699, 700, dtype=int)
 samples_interp = model.decode(torch.tensor(z_all[indices], dtype=torch.float32).to(device))
 samples_interp = torch.zeros_like(samples_interp)
 for i in range(100):
@@ -231,6 +233,9 @@ def outputFF(samples, idx):
 for k in range(100): 
     outputFF(samples_interp, k)
 
+indices = [0,10,20,28,29,50,100,150,200,226,227,230,240,245,249,250,300,350,400,407,408,409,410,450,500,530,533,534,540,544]
+for k in range(len(indices)): 
+    outputFF(samples_interp, indices[k])
 
 # compare training data and generated data
 realdata = utils.convert1Dto2D(train_data[:,0],N,NBZ)

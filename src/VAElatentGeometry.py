@@ -9,7 +9,7 @@ from src import FormFactorFuns as FFFs
 
 device = 'cpu'
 
-Nx, Ny = 3,6
+Nx, Ny = 3,5
 train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
 #train_data, y = utils.ReadAllData(Nx, Ny, 
 #                                   alphas = np.linspace(0.35,3.55,700),
