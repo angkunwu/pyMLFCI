@@ -11,14 +11,14 @@ from src import VAEclass
 device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
 print(f"Using device: {device}")
 
-Nx, Ny = 4, 6
-#train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
-train_data, y = utils.ReadAllData(Nx, Ny, 
-                                   alphas = np.linspace(0.35,3.55,700),
-                                   c0s1 = np.linspace(-1.0,1.0,100),
-                                   c0s2 = np.linspace(-0.7,0.7,100),
-                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
-#train_data, y = utils.filterData(train_data,y)
+Nx, Ny = 3, 5 #4, 6
+train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
+#train_data, y = utils.ReadAllData(Nx, Ny, 
+#                                   alphas = np.linspace(0.35,3.55,700),
+#                                   c0s1 = np.linspace(-1.0,1.0,100),
+#                                   c0s2 = np.linspace(-0.7,0.7,100),
+#                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
+train_data, y = utils.filterData(train_data,y)
 N = Nx * Ny
 NBZ = train_data[:,0].shape[0]/N/N
 NBZ = int(NBZ)
@@ -26,7 +26,7 @@ NBZ = int(NBZ)
 FFdataset = utils.FormFactorDataset(train_data, y, Nx, Ny, NBZ)
 dataset_size = len(FFdataset)
 print(f"Dataset size: {dataset_size}")
-train_ratio = 0.9
+train_ratio = 1.0
 train_size = int(dataset_size * train_ratio)
 test_ratio = 1 - train_ratio
 test_size = dataset_size - train_size
@@ -76,13 +76,31 @@ prev_updates = 0
 for epoch in range(num_epochs):
     print(f"Epoch {epoch+1}/{num_epochs}")
     prev_updates = VAEclass.train(model, train_loader, optimizer, prev_updates, device=device)
-    VAEclass.test(model, test_loader, prev_updates, device=device)
-    
+    #VAEclass.test(model, test_loader, prev_updates, device=device)
 
+# record final loss
+model.eval()
+with torch.no_grad():
+    total_loss = 0
+    total_recon = 0
+    total_kl = 0
+    for data, target in train_loader:
+        data = data.to(device)
+        output = model(data)
+        total_loss += output.loss.item()
+        total_recon += output.loss_recon.item()
+        total_kl += output.loss_kl.item()
+    avg_loss = total_loss / len(train_loader)
+    avg_recon = total_recon / len(train_loader)
+    avg_kl = total_kl / len(train_loader)
+
+print(f"Average training loss: {avg_loss}")
+print(f"Average reconstruction loss: {avg_recon}")
+print(f"Average KL divergence: {avg_kl}")
 
 #model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}_Nx{Nx}Ny{Ny}.pth'
 #model_save_path = f'./checkpoints/vaeMixture_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}_Nx{Nx}Ny{Ny}.pth'
-model_save_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}all.pth'
+model_save_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}_notest2.pth'
 #model_save_path = f'./checkpoints/vaeTrans_lat_{latent_dim}_hid_{hidden_dim}_Nx{Nx}Ny{Ny}.pth'
 torch.save(model.state_dict(), model_save_path)
 print(f"Model saved to {model_save_path}")

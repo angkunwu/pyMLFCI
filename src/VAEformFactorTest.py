@@ -8,13 +8,13 @@ from src import utils
 
 device = 'cpu'
 
-Nx, Ny = 4,6 #3, 5
-#train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
-train_data, y = utils.ReadAllData(Nx, Ny, 
-                                   alphas = np.linspace(0.35,3.55,700),
-                                   c0s1 = np.linspace(-1.0,1.0,100),
-                                   c0s2 = np.linspace(-0.7,0.7,100),
-                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
+Nx, Ny = 3, 5
+train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
+#train_data, y = utils.ReadAllData(Nx, Ny, 
+#                                   alphas = np.linspace(0.35,3.55,700),
+#                                   c0s1 = np.linspace(-1.0,1.0,100),
+#                                   c0s2 = np.linspace(-0.7,0.7,100),
+#                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
 N = Nx * Ny
 NBZ = train_data[:,0].shape[0]/N/N
 NBZ = int(NBZ)
@@ -31,13 +31,13 @@ num_epochs = 100
 #model_load_path = f'./checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_decayrate_n2_Nx{Nx}Ny{Ny}.pth'
 #model = VAEclass.VAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
 kernel_size = 3
-model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}.pth'
+model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}_notest.pth'
 model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim,latent_dim=latent_dim, kernel_size=kernel_size).to(device)
 
 #model_load_path = f'./checkpoints/vaeTrans_lat_{latent_dim}_hid_{hidden_dim}_Nx{Nx}Ny{Ny}.pth'
 #model = VAEclass.TransformerVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
 
-model.load_state_dict(torch.load(model_load_path))
+model.load_state_dict(torch.load(model_load_path,map_location=torch.device(device)))
 model.eval()  # Set the model to evaluation mode
 print(f"Model loaded from {model_load_path}")
 """
@@ -193,7 +193,7 @@ with torch.no_grad():
 
 samples_interp = model.decode(torch.tensor(zs, dtype=torch.float32).to(device))
 
-indices = np.linspace(0, 699, 700, dtype=int)
+indices = np.linspace(0, 99, 100, dtype=int)
 samples_interp = model.decode(torch.tensor(z_all[indices], dtype=torch.float32).to(device))
 samples_interp = torch.zeros_like(samples_interp)
 for i in range(100):
