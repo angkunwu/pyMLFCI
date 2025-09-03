@@ -9,13 +9,13 @@ from src import FormFactorFuns as FFFs
 
 device = 'cpu'
 
-Nx, Ny = 3,5
-train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
-#train_data, y = utils.ReadAllData(Nx, Ny, 
-#                                   alphas = np.linspace(0.35,3.55,700),
-#                                   c0s1 = np.linspace(-1.0,1.0,100),
-#                                   c0s2 = np.linspace(-0.7,0.7,100),
-#                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
+Nx, Ny = 4,6
+#train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
+train_data, y = utils.ReadAllData(Nx, Ny, 
+                                     alphas = np.linspace(0.35,3.55,700),
+                                     c0s1 = np.linspace(-1.0,1.0,100),
+                                     c0s2 = np.linspace(-0.7,0.7,100),
+                                     c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
 N = Nx * Ny
 NBZ = train_data[:,0].shape[0]/N/N
 NBZ = int(NBZ)
@@ -30,10 +30,10 @@ latent_dim = 3
 num_epochs = 100
 
 kernel_size = 3 #3
-model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}.pth'
+model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}_notest.pth'
 model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim,latent_dim=latent_dim, kernel_size=kernel_size).to(device)
 
-model.load_state_dict(torch.load(model_load_path))
+model.load_state_dict(torch.load(model_load_path,map_location=torch.device(device)))
 print(f"Model loaded from {model_load_path}")
 
 def TensorTo2Ddata(Tensordata):
@@ -123,6 +123,13 @@ ax.set_ylabel(r'$z_2$')
 ax.set_zlabel(r'$z_3$')
 plt.show()
 
+# # plot histogram of trg1std
+# plt.figure()
+# plt.hist(trg1std, bins=20, alpha=0.7, label=r'$C_{tr(g)}$')
+# plt.xlabel(r'$C_{tr(g)}$')
+# plt.ylabel('Frequency')
+# plt.legend()
+# plt.show()
 
 Samples = 100
 z_new = torch.zeros((Samples, latent_dim), dtype=torch.float32)
@@ -136,21 +143,24 @@ while cursam < Samples:
     z_temp = torch.zeros((1, latent_dim), dtype=torch.float32)
     for i in range(latent_dim):
         #z_temp[:,i] = torch.FloatTensor(1).uniform_(-maxz[i]*1.1, maxz[i]*1.1)
-        z_temp[:,i] = torch.FloatTensor(1).uniform_(-maxz[i]*2, maxz[i]*2)
+        z_temp[:,i] = torch.FloatTensor(1).uniform_(-maxz[i]*1.0, maxz[i]*1.0)
     imagetemp = model.decode(z_temp)
     Component2d = TensorTo2Ddata(imagetemp[0])
     Bcurs = FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=False)
     trg1s = FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=True)
     Ctemp = sum(Bcurs)/2/np.pi
     trgtemp = sum(trg1s)/2/np.pi/2
-    #if np.abs(trgtemp) > 1.5 and np.abs(trgtemp) < 1.7 and np.abs(Ctemp+1) < 0.01:
-    if trgtemp > 1.0 and np.abs(Ctemp+1) < 0.01:
+    stdtrg = np.std(trg1s)/2/np.pi/2
+    if trgtemp > 1.05 and np.abs(Ctemp+1) < 0.01 and stdtrg < 0.015: #stdtrg < 0.005:
+    #if np.abs(Ctemp+1) > 0.5:
+    #if trgtemp > 2.9 and trgtemp < 3.1 and np.abs(Ctemp+1) < 0.01:
         z_new[cursam] = z_temp
         Fxys[cursam] = Ctemp
         trg1[cursam] = trgtemp
         Fxystd[cursam] = np.std(Bcurs)/2/np.pi
         trg1std[cursam] = np.std(trg1s)/2/np.pi/2
         cursam += 1
+        print(Ctemp)
     runind += 1
     print(runind, ' ',cursam)
 
@@ -175,7 +185,9 @@ def outputFF(samples, idx):
 
     # save the df to a .csv file
     pt = "~/pyMLFCI/data/"
-    file_path = pt + "FFVAESample" + str(idx) + ".csv"
+    #file_path = pt + "FFVAESampleNx3Ny5Ind" + str(idx) + ".csv"
+    #file_path = pt + "FFVAESampleNx4Ny6Ind" + str(idx) + "all.csv"
+    file_path = pt + "FFVAESampleNx4Ny6Ind" + str(idx) + "Lowg.csv"
     df.to_csv(file_path,index=False)
     return
 
@@ -183,3 +195,14 @@ samples_interp = model.decode(torch.tensor(z_new, dtype=torch.float32).to(device
 
 for k in range(100): 
     outputFF(samples_interp, k)
+
+
+# # remove files
+# import os
+# pt = os.path.expanduser("~/pyMLFCI/data/")
+# for k in range(100): 
+#     file_path = pt + "FFVAESampleNx4Ny6" + str(k) + ".csv"
+#     if os.path.exists(file_path):
+#         os.remove(file_path)
+#     else:
+#         print(f"The file {file_path} does not exist.")

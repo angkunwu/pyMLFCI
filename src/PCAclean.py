@@ -8,9 +8,8 @@ from src import FormFactorFuns as FFFs
 
 Nx, Ny = 3, 5
 N = Nx*Ny
-NBZ = int(train_data.shape[0]/N/N)
 train_data, y = utils.ReadAllData(Nx,Ny)
-
+NBZ = int(train_data.shape[0]/N/N)
 Samples = np.size(y)
 
 # mean of the training data
@@ -44,8 +43,8 @@ def convert1Dto2D(data1d,N,NBZ):
     # transpose the data2d
     data2d = data2d.T
     return data2d
-Cherns = np.zeros(20) # Chern number of first 20 components
-for k in tqdm(range(20)):
+Cherns = np.zeros(400) # Chern number of first 20 components
+for k in tqdm(range(400)):
     Component2d = convert1Dto2D(normalvectors[:,k],N,NBZ)
     Bcurs = FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=False)
     Cherns[k] = sum(Bcurs)/2/np.pi
@@ -63,3 +62,8 @@ ax[2,0].set_xlabel(r'amplitude Re($\mathbf{u}_j\mathbf{x}_n$)',fontsize=12)
 ax[2,0].set_ylabel(r'# of samples',fontsize=12)
 plt.show()
 #plt.savefig('../Desktop/fig2.pdf', bbox_inches='tight')
+
+
+sum(expansions[0,:] * Cherns)
+
+test = expansions[0,0:4] * Cherns[:4]

@@ -8,13 +8,13 @@ from src import utils
 
 device = 'cpu'
 
-Nx, Ny = 3, 5
-train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
-#train_data, y = utils.ReadAllData(Nx, Ny, 
-#                                   alphas = np.linspace(0.35,3.55,700),
-#                                   c0s1 = np.linspace(-1.0,1.0,100),
-#                                   c0s2 = np.linspace(-0.7,0.7,100),
-#                                   c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
+Nx, Ny = 4,6 #3, 5
+#train_data, y = utils.ReadAllData(Nx, Ny)  # the train_data
+train_data, y = utils.ReadAllData(Nx, Ny, 
+                                    alphas = np.linspace(0.35,3.55,700),
+                                    c0s1 = np.linspace(-1.0,1.0,100),
+                                    c0s2 = np.linspace(-0.7,0.7,100),
+                                    c0s3 = np.linspace(-0.5,0.5,100))  # the train_data
 N = Nx * Ny
 NBZ = train_data[:,0].shape[0]/N/N
 NBZ = int(NBZ)
@@ -28,10 +28,10 @@ hidden_dim = 2048
 latent_dim = 3
 num_epochs = 100
 # Load the model
-#model_load_path = f'./checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_decayrate_n2_Nx{Nx}Ny{Ny}.pth'
+#model_load_path = f'./checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_decayrate_n2_Nx{Nx}Ny{Ny}_notest.pth'
 #model = VAEclass.VAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
 kernel_size = 3
-model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}_notest.pth'
+model_load_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}all_notest.pth'
 model = VAEclass.BottomConvVAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim,latent_dim=latent_dim, kernel_size=kernel_size).to(device)
 
 #model_load_path = f'./checkpoints/vaeTrans_lat_{latent_dim}_hid_{hidden_dim}_Nx{Nx}Ny{Ny}.pth'
@@ -144,10 +144,10 @@ fig = plt.figure(figsize=(10, 10))
 ax = fig.add_subplot(111, projection='3d')
 sc = ax.scatter(z_all[:, 0], z_all[:, 1], z_all[:, 2], c=y_all, cmap='RdBu',
                 edgecolors='none',linewidths=0)
-# Add color bar
-#cbar = plt.colorbar(sc, ax=ax, shrink=0.5, aspect=10)
-#cbar.set_label('IsFCI')
-# set x label as z_1 with latex math
+# set limit
+ax.set_xlim([-3, 3])
+ax.set_ylim([-3, 3])
+ax.set_zlim([-3, 3])
 ax.set_xlabel(r'$z_1$', fontsize=12)
 ax.set_ylabel(r'$z_2$', fontsize=12)
 ax.set_zlabel(r'$z_3$', fontsize=12)
@@ -168,19 +168,39 @@ for i in range(n):
     ax[i].axis('off')
 plt.show()
 
-alphas = np.linspace(0.78943,3.517548,100) # ind=0,49,99
+#alphas = np.linspace(0.78943,3.517548,100) # ind=0,49,99
 z0 = torch.tensor(z_all[0], dtype=torch.float32).to(device)
 z1 = torch.tensor(z_all[99], dtype=torch.float32).to(device)
 # generate a linear interpolation between z0 and z1
-n = 20
+n = 100
 alpha = torch.linspace(0, 1, n).unsqueeze(1).to(device)  # Shape: (n, 1)
 z_interp = (1 - alpha) * z0.unsqueeze(0) + alpha * z1.unsqueeze(0)  # Broadcasting
 samples_interp = model.decode(z_interp)
-fig, ax = plt.subplots(1,n,figsize=(n,1))
-for i in range(n):
-    ax[i].imshow(dataTophase(samples_interp[i]),cmap='RdBu')
+fig, ax = plt.subplots(1,10,figsize=(10,1))
+for i in range(10):
+    ax[i].imshow(dataTophase(samples_interp[10*i]),cmap='RdBu')
     ax[i].axis('off')
 plt.show()
+
+
+alphas = np.linspace(0.35,3.55,700) # ind = 96,389,692
+z0 = torch.tensor(z_all[96], dtype=torch.float32).to(device) #[-1.08,-0.429,0.834]
+z1 = torch.tensor(z_all[389], dtype=torch.float32).to(device) #[0.974,0.199,0.309]
+z2 = torch.tensor(z_all[692], dtype=torch.float32).to(device) #[-0.550,1.089,-0.801]
+# generate a linear interpolation between z0 and z1, z1 and z2
+n = 50
+alpha = torch.linspace(0, 1, n).unsqueeze(1).to(device)  # Shape: (n, 1)
+z_interp_01 = (1 - alpha) * z0.unsqueeze(0) + alpha * z1.unsqueeze(0)  # Broadcasting
+z_interp_12 = (1 - alpha) * z1.unsqueeze(0) + alpha * z2.unsqueeze(0)  # Broadcasting
+z_interp = torch.cat((z_interp_01, z_interp_12), dim=0)
+samples_interp = model.decode(z_interp)
+fig, ax = plt.subplots(1,10,figsize=(10,1))
+for i in range(10):
+    ax[i].imshow(dataTophase(samples_interp[10*i]),cmap='RdBu')
+    ax[i].axis('off')
+plt.show()
+
+
 
 #alphas = np.linspace(0.78943,3.517548,100) # ind=0,49,99
 model.eval()
@@ -193,7 +213,7 @@ with torch.no_grad():
 
 samples_interp = model.decode(torch.tensor(zs, dtype=torch.float32).to(device))
 
-indices = np.linspace(0, 99, 100, dtype=int)
+indices = np.linspace(0, 699, 700, dtype=int)
 samples_interp = model.decode(torch.tensor(z_all[indices], dtype=torch.float32).to(device))
 samples_interp = torch.zeros_like(samples_interp)
 for i in range(100):
@@ -227,22 +247,20 @@ def outputFF(samples, idx):
     # save the df to a .csv file
     pt = "~/pyMLFCI/data/"
     file_path = pt + "FFVAESample" + str(idx) + ".csv"
+    #file_path = pt + "FFVAESampleNx4Ny6Ind" + str(idx) + "Interpolate.csv"
+    #file_path = pt + "FFVAESampleNx4Ny6Ind" + str(idx) + "FCICDW.csv"
     df.to_csv(file_path,index=False)
     return
 
-for k in range(100): 
+for k in range(100):
     outputFF(samples_interp, k)
 
-indices = [0,10,20,28,29,50,100,150,200,226,227,230,240,245,249,250,300,350,400,407,408,409,410,450,500,530,533,534,540,544]
+
+indices = [0,10,20,28,29,50,100,150,200,226,227,235,240,245,249,250,300,350,400,450,500,533,534,535,540,544,545,600,650,699]
 for k in range(len(indices)): 
     outputFF(samples_interp, indices[k])
 
-# compare training data and generated data
-realdata = utils.convert1Dto2D(train_data[:,0],N,NBZ)
-dataNP = (samples_interp[0].detach().numpy()-0.5)*2.0 # -0.5 from adding 0.5 in the model class
-gendata = utils.convert1Dto2D(dataNP[:(N*N*NBZ)],N,NBZ) + 1j*utils.convert1Dto2D(dataNP[(N*N*NBZ):],N,NBZ)
 
-np.abs(gendata - realdata)
-# find the maximum absolute difference
-max_diff = np.max(np.abs(gendata - realdata))
-max_diff
+
+
+
