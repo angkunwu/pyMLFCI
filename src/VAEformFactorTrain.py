@@ -4,8 +4,8 @@ import torch
 from torch.utils.data import DataLoader, random_split
 from src import utils
 from src import VAEclass
-#import utils
-#import VAEclass
+# import utils
+# import VAEclass
 
 #device = torch.device('mps' if torch.cuda.is_available() else 'cpu')
 device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
@@ -38,7 +38,7 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle = False)
 all_loader = DataLoader(FFdataset, shuffle = False)
 
 # Define the VAE model
-hidden_dim = 2048 #32 #2048
+hidden_dim = 512 #2048 #32 #2048
 latent_dim = 3 #8 #10
 print(f"Using hidden_dim: {hidden_dim}, latent_dim: {latent_dim}")
 #model = VAEclass.VAE(input_dim=2*N*N*NBZ, hidden_dim=hidden_dim, latent_dim=latent_dim).to(device)
@@ -100,7 +100,7 @@ print(f"Average KL divergence: {avg_kl}")
 
 #model_save_path = f'../checkpoints/vae_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}_Nx{Nx}Ny{Ny}.pth'
 #model_save_path = f'./checkpoints/vaeMixture_FF_lat_{latent_dim}_hid_{hidden_dim}_epoch_{num_epochs}_Nx{Nx}Ny{Ny}.pth'
-model_save_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}_notest2.pth'
+#model_save_path = f'./checkpoints/vaeConv_lat_{latent_dim}_hid_{hidden_dim}_kernel_{kernel_size}_Nx{Nx}Ny{Ny}_notest2.pth'
 #model_save_path = f'./checkpoints/vaeTrans_lat_{latent_dim}_hid_{hidden_dim}_Nx{Nx}Ny{Ny}.pth'
-torch.save(model.state_dict(), model_save_path)
-print(f"Model saved to {model_save_path}")
+#torch.save(model.state_dict(), model_save_path)
+#print(f"Model saved to {model_save_path}")

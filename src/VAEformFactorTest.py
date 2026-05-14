@@ -133,6 +133,9 @@ with torch.no_grad():
         y_all.append(target.numpy())
 z_all = np.concatenate(z_all,axis=0)
 y_all = np.concatenate(y_all,axis=0)
+
+#np.savez('./data/latent_data.npz', z_all=z_all, y_all=y_all)
+
 # plot classifcation in latent space
 plt.figure(figsize=(8, 8))
 plt.scatter(z_all[:, 0], z_all[:, 1], c=y_all,cmap='RdBu')
@@ -264,3 +267,35 @@ for k in range(len(indices)):
 
 
 
+
+
+alphas = np.linspace(0.35,3.55,700) # ind = 96,389,692
+z0 = torch.tensor(z_all[96], dtype=torch.float32).to(device) #[-1.08,-0.429,0.834]
+z1 = torch.tensor(z_all[389], dtype=torch.float32).to(device) #[0.974,0.199,0.309]
+z2 = torch.tensor(z_all[692], dtype=torch.float32).to(device) #[-0.550,1.089,-0.801]
+# generate a linear interpolation between z0 and z1, z1 and z2
+n = 50
+alpha = torch.linspace(0, 1, n).unsqueeze(1).to(device)  # Shape: (n, 1)
+z_interp_01 = (1 - alpha) * z0.unsqueeze(0) + alpha * z1.unsqueeze(0)  # Broadcasting
+z_interp_12 = (1 - alpha) * z1.unsqueeze(0) + alpha * z2.unsqueeze(0)  # Broadcasting
+z_interp = torch.cat((z_interp_01, z_interp_12), dim=0)
+
+z_cdw =  torch.tensor([-6.0038,  0.9378, -0.0133]).to(device)
+z_interp_cdw = (1 - alpha) * z1.unsqueeze(0) + alpha * z_cdw.unsqueeze(0)
+
+
+from mpl_toolkits.mplot3d import Axes3D
+fig = plt.figure(figsize=(10, 10))
+ax = fig.add_subplot(111, projection='3d')
+sc = ax.scatter(z_all[:, 0], z_all[:, 1], z_all[:, 2], c=y_all, cmap='seismic_r',
+                edgecolors='none',linewidths=0)
+ax.plot(z_interp[:, 0], z_interp[:, 1], z_interp[:, 2], color='black', linewidth=2, label='Interpolation Path')
+ax.plot(z_interp_cdw[:, 0], z_interp_cdw[:, 1], z_interp_cdw[:, 2], color='green', linewidth=2, label='To CDW Path')
+# set limit
+ax.set_xlim([-3, 3])
+ax.set_ylim([-3, 3])
+ax.set_zlim([-3, 3])
+ax.set_xlabel(r'$z_1$', fontsize=12)
+ax.set_ylabel(r'$z_2$', fontsize=12)
+ax.set_zlabel(r'$z_3$', fontsize=12)
+plt.show()

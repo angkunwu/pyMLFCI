@@ -18,7 +18,14 @@ barx = np.mean(train_data,axis=1)
 XT = train_data - barx[:,None]
 X = XT.conj().T
 S = np.dot(X,XT)/Samples # N by N matrix
-eigenvalues, eigenvectors = np.linalg.eig(S)
+S = (S + S.conj().T)/2 # make sure S is Hermitian
+#eigenvalues, eigenvectors = np.linalg.eig(S)
+eigenvalues, eigenvectors = np.linalg.eigh(S) # use eigh for Hermitian matrix
+# sort eigenvalues and eigenvectors in descending order
+idx = np.argsort(eigenvalues)[::-1]
+eigenvalues = np.abs(eigenvalues[idx])
+eigenvectors = eigenvectors[:,idx]
+
 # convert components from Nx1 to Dx1
 normalvectors = np.zeros(XT.shape,dtype=complex)
 for k in range(Samples):
@@ -48,6 +55,13 @@ for k in tqdm(range(400)):
     Component2d = convert1Dto2D(normalvectors[:,k],N,NBZ)
     Bcurs = FFFs.WilsonLoopFull(Nx, Ny, Component2d, etaxy=False)
     Cherns[k] = sum(Bcurs)/2/np.pi
+
+# plot Chern number vs component index
+plt.figure(figsize=(6,4))
+plt.scatter(range(50), Cherns[:50])
+plt.xlabel('component index', fontsize=12)
+plt.ylabel('Chern number', fontsize=12)
+plt.show()
 
 
 # plot histogram of coefficients at first several orders
